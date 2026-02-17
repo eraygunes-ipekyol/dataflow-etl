@@ -1,0 +1,52 @@
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
+import AppShell from '@/components/layout/AppShell'
+import DashboardPage from '@/pages/DashboardPage'
+import ConnectionsPage from '@/pages/ConnectionsPage'
+import WorkflowsPage from '@/pages/WorkflowsPage'
+import ExecutionsPage from '@/pages/ExecutionsPage'
+import SchedulesPage from '@/pages/SchedulesPage'
+import SettingsPage from '@/pages/SettingsPage'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000,
+      retry: 1,
+    },
+  },
+})
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <AppShell />,
+    children: [
+      { index: true, element: <DashboardPage /> },
+      { path: 'connections', element: <ConnectionsPage /> },
+      { path: 'workflows', element: <WorkflowsPage /> },
+      { path: 'executions', element: <ExecutionsPage /> },
+      { path: 'schedules', element: <SchedulesPage /> },
+      { path: 'settings', element: <SettingsPage /> },
+    ],
+  },
+])
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: '#111111',
+            border: '1px solid #27272a',
+            color: '#fafafa',
+          },
+        }}
+      />
+    </QueryClientProvider>
+  )
+}

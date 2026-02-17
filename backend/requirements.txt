@@ -1,0 +1,36 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Database
+sqlalchemy==2.0.36
+
+# Validation & Settings
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# MSSQL
+pyodbc==5.2.0
+
+# BigQuery
+google-cloud-bigquery==3.27.0
+
+# Scheduler
+apscheduler==3.10.4
+
+# Encryption
+cryptography==44.0.0
+
+# File upload
+python-multipart==0.0.20
+
+# WebSocket
+websockets==14.1
+
+# Environment
+python-dotenv==1.0.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+httpx==0.28.1

@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkflowDefinition",
+  "type": "object",
+  "required": ["nodes", "edges", "viewport"],
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "position", "data"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["source", "destination", "transform", "filter", "join", "workflow_ref"]
+          },
+          "position": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "connectionId": { "type": "string" },
+              "tableName": { "type": "string" },
+              "schemaName": { "type": "string" },
+              "query": { "type": "string" },
+              "columns": { "type": "array" },
+              "mapping": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sourceColumn": { "type": "string" },
+                    "targetColumn": { "type": "string" },
+                    "transform": { "type": "string" }
+                  }
+                }
+              },
+              "transformRules": { "type": "array" },
+              "filterCondition": { "type": "string" },
+              "workflowRefId": { "type": "string" },
+              "writeMode": {
+                "type": "string",
+                "enum": ["append", "overwrite", "upsert"]
+              },
+              "batchSize": { "type": "integer", "default": 5000 }
+            }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "target"],
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "sourceHandle": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["success", "failure", "default"]
+          }
+        }
+      }
+    },
+    "viewport": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "zoom": { "type": "number" }
+      }
+    }
+  }
+}
