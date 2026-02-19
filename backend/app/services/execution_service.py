@@ -404,28 +404,83 @@ def run_workflow(
 
 # ─── Sorgu fonksiyonları ──────────────────────────────────────────────────
 
+def _build_folder_path(db: Session, folder_id: Optional[str]) -> str:
+    """
+    Verilen folder_id için tam yol üretir: 'Üst > Ara > Alt'
+    Döngü korumalı (max 10 seviye).
+    """
+    if not folder_id:
+        return ""
+    from app.models.folder import Folder
+    parts: list[str] = []
+    seen: set[str] = set()
+    fid: Optional[str] = folder_id
+    while fid and fid not in seen and len(parts) < 10:
+        seen.add(fid)
+        folder = db.get(Folder, fid)
+        if not folder:
+            break
+        parts.append(folder.name)
+        fid = folder.parent_id
+    parts.reverse()
+    return " > ".join(parts)
+
+
+def _get_folder_workflow_ids(db: Session, folder_id: str) -> list[str]:
+    """Bir klasör ve tüm alt klasörlerindeki workflow ID'lerini döner."""
+    from app.models.folder import Folder
+    from app.models.workflow import Workflow
+
+    result_ids: list[str] = []
+    queue = [folder_id]
+    seen: set[str] = set()
+
+    while queue:
+        fid = queue.pop()
+        if fid in seen:
+            continue
+        seen.add(fid)
+        # Bu klasördeki workflow'lar
+        wf_ids = [row[0] for row in db.query(Workflow.id).filter(Workflow.folder_id == fid).all()]
+        result_ids.extend(wf_ids)
+        # Alt klasörler
+        child_ids = [row[0] for row in db.query(Folder.id).filter(Folder.parent_id == fid).all()]
+        queue.extend(child_ids)
+
+    return result_ids
+
+
 def list_executions(
     db: Session,
     workflow_id: Optional[str] = None,
+    folder_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 200,
 ) -> list:
     """
-    Execution listesi döner. Her kayda workflow.name eklenir.
-    Filtreler: workflow_id, date_from/to (ISO date), status.
+    Execution listesi döner. Her kayda workflow.name, folder_id, folder_path eklenir.
+    Filtreler: workflow_id, folder_id (alt klasörler dahil), date_from/to (ISO date), status.
     """
     from app.models.workflow import Workflow
     from datetime import datetime as _dt
 
     q = (
-        db.query(Execution, Workflow.name.label("workflow_name"))
+        db.query(Execution, Workflow.name.label("workflow_name"), Workflow.folder_id.label("folder_id"))
         .join(Workflow, Execution.workflow_id == Workflow.id, isouter=True)
     )
 
     if workflow_id:
         q = q.filter(Execution.workflow_id == workflow_id)
+    elif folder_id:
+        # Klasör ve alt klasörlerindeki tüm workflow'lar
+        wf_ids = _get_folder_workflow_ids(db, folder_id)
+        if wf_ids:
+            q = q.filter(Execution.workflow_id.in_(wf_ids))
+        else:
+            return []  # Klasörde hiç workflow yok
+
     if status:
         q = q.filter(Execution.status == status)
     if date_from:
@@ -444,14 +499,19 @@ def list_executions(
 
     rows = q.order_by(Execution.created_at.desc()).limit(limit).all()
 
-    # Sonuçları dict listesine dönüştür (workflow_name eklenerek)
+    # Klasör yollarını önbellekle (aynı klasörü tekrar tekrar sorgulamasın)
+    folder_path_cache: dict[Optional[str], str] = {}
+
     result = []
-    for execution, workflow_name in rows:
-        # Execution nesnesini dict'e çevir, workflow_name ekle
+    for execution, workflow_name, wf_folder_id in rows:
+        if wf_folder_id not in folder_path_cache:
+            folder_path_cache[wf_folder_id] = _build_folder_path(db, wf_folder_id)
         exec_dict = {
             "id": execution.id,
             "workflow_id": execution.workflow_id,
             "workflow_name": workflow_name,
+            "folder_id": wf_folder_id,
+            "folder_path": folder_path_cache[wf_folder_id],
             "status": execution.status,
             "trigger_type": execution.trigger_type,
             "error_message": execution.error_message,

@@ -2,6 +2,8 @@ export interface Execution {
   id: string
   workflow_id: string
   workflow_name?: string
+  folder_id?: string
+  folder_path?: string   // Örn: "Satış > Günlük"
   status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
   trigger_type: 'manual' | 'scheduled' | 'chained'
   error_message?: string

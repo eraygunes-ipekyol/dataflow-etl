@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import {
   Activity, CheckCircle2, XCircle, Loader2, AlertCircle,
-  Search, Filter, RotateCcw, Eye, ChevronDown, ChevronUp,
+  Search, Filter, RotateCcw, Eye, ChevronDown, ChevronUp, FolderOpen,
 } from 'lucide-react'
 import { useExecutions, useCancelExecution } from '@/hooks/useExecutions'
 import { useWorkflows } from '@/hooks/useWorkflows'
+import { useFolderTree } from '@/hooks/useFolders'
+import type { FolderTree } from '@/types/folder'
 import ExecutionLogViewer from '@/components/executions/ExecutionLogViewer'
 import { fmtDateTime, fmtDuration } from '@/utils/date'
 
@@ -43,30 +45,53 @@ function weekAgo(): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** Klasör ağacını girintili düz listeye çevirir */
+function flattenFolderTree(
+  folders: FolderTree[],
+  depth = 0,
+): Array<{ id: string; label: string }> {
+  const result: Array<{ id: string; label: string }> = []
+  for (const folder of folders) {
+    const prefix = depth > 0 ? '\u00a0\u00a0'.repeat(depth) + '└ ' : ''
+    result.push({ id: folder.id, label: prefix + folder.name })
+    if (folder.children?.length) {
+      result.push(...flattenFolderTree(folder.children, depth + 1))
+    }
+  }
+  return result
+}
+
 export default function ExecutionsPage() {
   const { data: workflows = [] } = useWorkflows()
+  const { data: folderTree = [] } = useFolderTree()
   const cancelExecution = useCancelExecution()
 
   const [viewingId,  setViewingId]  = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const [workflowFilter, setWorkflowFilter] = useState('')
+  const [folderFilter,   setFolderFilter]   = useState('')
   const [statusFilter,   setStatusFilter]   = useState('')
   const [dateFrom, setDateFrom] = useState(weekAgo())
   const [dateTo,   setDateTo]   = useState(today())
 
   const { data: executions = [], isLoading, refetch } = useExecutions({
     workflow_id: workflowFilter || undefined,
+    folder_id:   folderFilter   || undefined,
     status:      statusFilter   || undefined,
     date_from:   dateFrom       || undefined,
     date_to:     dateTo         || undefined,
     limit: 500,
   })
 
+  const flatFolders = flattenFolderTree(folderTree)
+
   const totalRows    = executions.reduce((s, e) => s + e.rows_processed, 0)
   const successCount = executions.filter((e) => e.status === 'success').length
   const failedCount  = executions.filter((e) => e.status === 'failed').length
   const runningCount = executions.filter((e) => e.status === 'running' || e.status === 'pending').length
+
+  const hasFilter = !!(workflowFilter || folderFilter || statusFilter)
 
   return (
     <div className="space-y-5 p-6">
@@ -88,10 +113,10 @@ export default function ExecutionsPage() {
       {/* Özet kartlar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Toplam',   val: executions.length,                    color: 'text-foreground' },
-          { label: 'Başarılı', val: successCount,                         color: 'text-green-400' },
-          { label: 'Hatalı',   val: failedCount,                          color: 'text-red-400' },
-          { label: 'Satır',    val: totalRows.toLocaleString('tr-TR'),     color: 'text-blue-400' },
+          { label: 'Toplam',   val: executions.length,                color: 'text-foreground' },
+          { label: 'Başarılı', val: successCount,                     color: 'text-green-400' },
+          { label: 'Hatalı',   val: failedCount,                      color: 'text-red-400' },
+          { label: 'Satır',    val: totalRows.toLocaleString('tr-TR'), color: 'text-blue-400' },
         ].map((c) => (
           <div key={c.label} className="rounded-xl border border-border bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">{c.label}</p>
@@ -104,6 +129,7 @@ export default function ExecutionsPage() {
       <div className="flex flex-wrap gap-3 rounded-xl border border-border bg-card px-4 py-3 items-end">
         <Filter className="h-4 w-4 text-muted-foreground self-center" />
 
+        {/* Tarih aralığı */}
         <div className="flex items-center gap-2">
           <label className="text-xs text-muted-foreground whitespace-nowrap">Başlangıç:</label>
           <input
@@ -123,11 +149,27 @@ export default function ExecutionsPage() {
           />
         </div>
 
+        {/* Klasör filtresi */}
+        <div className="flex items-center gap-1">
+          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+          <select
+            value={folderFilter}
+            onChange={(e) => { setFolderFilter(e.target.value); setWorkflowFilter('') }}
+            className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+          >
+            <option value="">Tüm Klasörler</option>
+            {flatFolders.map((f) => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Workflow filtresi */}
         <div className="flex items-center gap-1">
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <select
             value={workflowFilter}
-            onChange={(e) => setWorkflowFilter(e.target.value)}
+            onChange={(e) => { setWorkflowFilter(e.target.value); setFolderFilter('') }}
             className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
           >
             <option value="">Tüm Workflow'lar</option>
@@ -137,6 +179,7 @@ export default function ExecutionsPage() {
           </select>
         </div>
 
+        {/* Durum filtresi */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -148,9 +191,9 @@ export default function ExecutionsPage() {
           ))}
         </select>
 
-        {(workflowFilter || statusFilter) && (
+        {hasFilter && (
           <button
-            onClick={() => { setWorkflowFilter(''); setStatusFilter('') }}
+            onClick={() => { setWorkflowFilter(''); setFolderFilter(''); setStatusFilter('') }}
             className="text-xs text-muted-foreground hover:text-foreground underline"
           >
             Filtreleri temizle
@@ -183,7 +226,7 @@ export default function ExecutionsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/20">
-                {['Durum','Workflow','Başlangıç','Bitiş','Süre','Satır','Tetik','İşlem'].map((h, i) => (
+                {['Durum', 'Workflow / Klasör', 'Başlangıç', 'Bitiş', 'Süre', 'Satır', 'Tetik', 'İşlem'].map((h, i) => (
                   <th
                     key={h}
                     className={`px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide ${i === 7 ? 'text-right' : 'text-left'}`}
@@ -200,18 +243,35 @@ export default function ExecutionsPage() {
                       exec.status === 'running' ? 'bg-blue-950/10' : ''
                     }`}
                   >
+                    {/* Durum */}
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[exec.status] ?? ''}`}>
                         {STATUS_ICON[exec.status]}
                         {STATUS_TR[exec.status] ?? exec.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium">
-                      {exec.workflow_name ?? workflows.find((w) => w.id === exec.workflow_id)?.name ?? exec.workflow_id.slice(0, 8)}
+
+                    {/* Workflow adı + klasör yolu */}
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-sm leading-tight">
+                        {exec.workflow_name
+                          ?? workflows.find((w) => w.id === exec.workflow_id)?.name
+                          ?? exec.workflow_id.slice(0, 8)}
+                      </p>
+                      {exec.folder_path && (
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <FolderOpen className="h-3 w-3 shrink-0" />
+                          {exec.folder_path}
+                        </p>
+                      )}
                     </td>
+
+                    {/* Başlangıç */}
                     <td className="px-4 py-3 text-muted-foreground text-xs font-mono">
                       {fmtDateTime(exec.started_at)}
                     </td>
+
+                    {/* Bitiş */}
                     <td className="px-4 py-3 text-muted-foreground text-xs font-mono">
                       {exec.finished_at
                         ? fmtDateTime(exec.finished_at)
@@ -220,18 +280,26 @@ export default function ExecutionsPage() {
                           : '—'
                       }
                     </td>
+
+                    {/* Süre */}
                     <td className="px-4 py-3 text-xs font-mono text-primary">
                       {fmtDuration(exec.started_at, exec.finished_at)}
                     </td>
+
+                    {/* Satır */}
                     <td className="px-4 py-3 text-xs">
                       <span className="text-green-400">{exec.rows_processed.toLocaleString('tr-TR')}</span>
                       {exec.rows_failed > 0 && (
                         <span className="text-red-400 ml-1">/ {exec.rows_failed.toLocaleString('tr-TR')} hata</span>
                       )}
                     </td>
+
+                    {/* Tetikleyici */}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {TRIGGER_TR[exec.trigger_type] ?? exec.trigger_type}
                     </td>
+
+                    {/* İşlem butonları */}
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button

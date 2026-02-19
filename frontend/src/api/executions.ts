@@ -3,6 +3,7 @@ import type { Execution, ExecutionDetail, ExecutionLog } from '@/types/execution
 
 export interface ExecutionListParams {
   workflow_id?: string
+  folder_id?: string   // Klasör filtresi (alt klasörler dahil)
   date_from?: string   // YYYY-MM-DD
   date_to?: string     // YYYY-MM-DD
   status?: string

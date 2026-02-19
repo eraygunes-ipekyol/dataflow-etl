@@ -10,6 +10,8 @@ class ExecutionResponse(BaseModel):
     id: str
     workflow_id: str
     workflow_name: Optional[str] = None   # JOIN ile doldurulur
+    folder_id: Optional[str] = None       # Workflow'un klasörü
+    folder_path: Optional[str] = None     # Üst > Alt klasör yolu (örn: "Satış > Günlük")
     status: str
     trigger_type: str
     error_message: Optional[str] = None

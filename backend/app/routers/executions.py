@@ -21,6 +21,7 @@ router = APIRouter(prefix="/executions", tags=["executions"], dependencies=[Depe
 @router.get("", response_model=list[ExecutionResponse])
 async def list_executions(
     workflow_id: Optional[str] = None,
+    folder_id: Optional[str] = None,   # Klasör filtresi (alt klasörler dahil)
     date_from: Optional[str] = None,   # ISO date string: 2024-01-15
     date_to: Optional[str] = None,     # ISO date string: 2024-01-20
     status: Optional[str] = None,      # success|failed|running|pending
@@ -28,7 +29,7 @@ async def list_executions(
     db: Session = Depends(get_db),
 ):
     rows = await run_in_threadpool(
-        execution_service.list_executions, db, workflow_id, date_from, date_to, status, limit
+        execution_service.list_executions, db, workflow_id, folder_id, date_from, date_to, status, limit
     )
     return [ExecutionResponse.model_validate(r) for r in rows]
 
