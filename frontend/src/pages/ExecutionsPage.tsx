@@ -11,11 +11,11 @@ import ExecutionLogViewer from '@/components/executions/ExecutionLogViewer'
 import { fmtDateTime, fmtDuration } from '@/utils/date'
 
 const STATUS_BADGE: Record<string, string> = {
-  success:   'bg-green-900/50 text-green-400 border-green-700',
-  failed:    'bg-red-900/50 text-red-400 border-red-700',
-  running:   'bg-blue-900/50 text-blue-400 border-blue-700',
-  pending:   'bg-zinc-800 text-zinc-400 border-zinc-600',
-  cancelled: 'bg-yellow-900/50 text-yellow-400 border-yellow-700',
+  success:   'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/50 dark:text-green-400 dark:border-green-700',
+  failed:    'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/50 dark:text-red-400 dark:border-red-700',
+  running:   'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/50 dark:text-blue-400 dark:border-blue-700',
+  pending:   'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-600',
+  cancelled: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/50 dark:text-yellow-400 dark:border-yellow-700',
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -240,7 +240,7 @@ export default function ExecutionsPage() {
                   <tr
                     key={exec.id}
                     className={`border-b border-border last:border-0 hover:bg-muted/10 transition-colors ${
-                      exec.status === 'running' ? 'bg-blue-950/10' : ''
+                      exec.status === 'running' ? 'bg-blue-50 dark:bg-blue-950/10' : ''
                     }`}
                   >
                     {/* Durum */}
@@ -313,7 +313,7 @@ export default function ExecutionsPage() {
                           <button
                             onClick={() => setExpandedId(expandedId === exec.id ? null : exec.id)}
                             title="Hata detayı"
-                            className="rounded p-1.5 hover:bg-red-900/20 transition-colors text-red-400"
+                            className="rounded p-1.5 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors text-red-500 dark:text-red-400"
                           >
                             {expandedId === exec.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </button>
@@ -322,7 +322,7 @@ export default function ExecutionsPage() {
                           <button
                             onClick={() => cancelExecution.mutate(exec.id)}
                             title="İptal Et"
-                            className="rounded p-1.5 hover:bg-red-900/20 transition-colors text-red-400"
+                            className="rounded p-1.5 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors text-red-500 dark:text-red-400"
                           >
                             <XCircle className="h-4 w-4" />
                           </button>
@@ -333,7 +333,7 @@ export default function ExecutionsPage() {
 
                   {/* Hata detay satırı */}
                   {expandedId === exec.id && exec.error_message && (
-                    <tr key={`${exec.id}-err`} className="bg-red-950/10">
+                    <tr key={`${exec.id}-err`} className="bg-red-50 dark:bg-red-950/10">
                       <td colSpan={8} className="px-6 py-3">
                         <p className="text-xs text-red-400 font-mono break-all">{exec.error_message}</p>
                       </td>

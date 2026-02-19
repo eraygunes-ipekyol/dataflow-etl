@@ -34,7 +34,7 @@ function NodeLiveBadge({ isActive, liveRows }: { isActive?: boolean; liveRows?: 
         </span>
       )}
       {liveRows != null && liveRows > 0 && (
-        <span className="rounded-full bg-zinc-800 border border-zinc-600 px-2 py-0.5 text-[10px] font-mono text-green-400 shadow">
+        <span className="rounded-full bg-zinc-900 border border-zinc-600 px-2 py-0.5 text-[10px] font-mono text-green-400 shadow">
           {liveRows.toLocaleString('tr-TR')} satır
         </span>
       )}

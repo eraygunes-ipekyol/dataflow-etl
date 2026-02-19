@@ -15,11 +15,12 @@ interface Props {
   nodes?: NodeInfo[]
 }
 
+// Log terminal her zaman dark arka plana sahip (bg-zinc-950), bu yüzden renkler sabit
 const LEVEL_STYLES: Record<string, string> = {
-  info: 'text-foreground',
+  info: 'text-zinc-200',
   warning: 'text-yellow-400',
   error: 'text-red-400',
-  debug: 'text-muted-foreground',
+  debug: 'text-zinc-500',
 }
 
 const STATUS_ICON = {
@@ -101,7 +102,7 @@ export default function ExecutionLogViewer({ executionId, onClose, nodes }: Prop
         </div>
 
         {/* Log output */}
-        <div className="h-80 overflow-auto bg-[#0d0d0d] font-mono text-xs p-3 space-y-0.5">
+        <div className="h-80 overflow-auto bg-zinc-950 dark:bg-[#0d0d0d] font-mono text-xs p-3 space-y-0.5">
           {logs.map((log, i) => (
             <div key={log.id ?? i} className={`flex gap-2 ${LEVEL_STYLES[log.level] || ''}`}>
               <span className="text-muted-foreground flex-shrink-0">
@@ -124,7 +125,7 @@ export default function ExecutionLogViewer({ executionId, onClose, nodes }: Prop
 
         {/* Footer */}
         {execution?.error_message && (
-          <div className="border-t border-border bg-red-950/30 px-4 py-2 text-sm text-red-400">
+          <div className="border-t border-border bg-red-50 dark:bg-red-950/30 px-4 py-2 text-sm text-red-600 dark:text-red-400">
             Hata: {execution.error_message}
           </div>
         )}

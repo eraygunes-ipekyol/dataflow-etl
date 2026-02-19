@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Generator
@@ -249,13 +250,22 @@ class BigQueryConnector(BaseConnector):
         ndjson_lines = [json.dumps(row, default=str) for row in rows]
         ndjson_content = "\n".join(ndjson_lines)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=True) as tmp:
+        # Windows'ta delete=True ile açık dosyayı tekrar açmak Permission denied verir.
+        # Bu yüzden delete=False kullanıp, işlem bittikten sonra manuel siliyoruz.
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
+        try:
             tmp.write(ndjson_content)
             tmp.flush()
+            tmp.close()  # Windows'ta başka process açabilmesi için önce kapat
 
             with open(tmp.name, "rb") as f:
                 job = self._client.load_table_from_file(f, table_ref_str, job_config=job_config)
                 job.result()  # Tamamlanmasını bekle
+        finally:
+            try:
+                os.unlink(tmp.name)  # Geçici dosyayı temizle
+            except OSError:
+                pass
 
         return len(rows)
 

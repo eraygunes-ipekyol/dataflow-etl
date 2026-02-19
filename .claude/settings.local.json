@@ -1,18 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install:*)",
-      "Bash(npx tsc:*)",
-      "Bash(npm run build:*)",
-      "Bash(python3 -m venv:*)",
-      "Bash(source venv/bin/activate)",
-      "Bash(pip install:*)",
-      "Bash(python:*)",
-      "Bash(python3:*)",
-      "Bash(brew install:*)",
-      "Bash(curl:*)",
-      "Bash(brew tap:*)",
-      "Bash(HOMEBREW_ACCEPT_EULA=Y brew install:*)"
+      "Bash(*)"
     ]
   }
 }

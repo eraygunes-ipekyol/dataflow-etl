@@ -157,6 +157,13 @@ export default function NodeConfigPanel({ node, allNodes, edges, onClose, onSave
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
+  // Farklı bir node'a çift tıklandığında (panel açıkken) tüm state'i sıfırla
+  useEffect(() => {
+    setLocalNode(node)
+    setPreviewData(null)
+    setPreviewOpen(false)
+  }, [node.id])
+
   // ── Resize — pointer capture ile (ReactFlow canvas'ı geçmez) ───────────
   const MIN_WIDTH = 420
   const MAX_WIDTH = 960
@@ -343,7 +350,7 @@ export default function NodeConfigPanel({ node, allNodes, edges, onClose, onSave
   /* ── Render ─────────────────────────────────────────────────────────── */
   return (
     <div
-      className="fixed inset-y-0 right-0 z-40 border-l border-border bg-card shadow-xl flex flex-col"
+      className="fixed top-14 bottom-0 right-0 z-40 border-l border-border bg-card shadow-xl flex flex-col"
       style={{ width: panelWidth }}
     >
       {/* ── Resize handle (sol kenar, pointer capture ile) ── */}
@@ -553,7 +560,7 @@ export default function NodeConfigPanel({ node, allNodes, edges, onClose, onSave
                       </div>
                     )}
                     {(previewTableMut.isError || previewQueryMut.isError) && (
-                      <div className="rounded-lg border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-400">
+                      <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400">
                         Önizleme hatası: {String((previewTableMut.error || previewQueryMut.error) as Error)}
                       </div>
                     )}

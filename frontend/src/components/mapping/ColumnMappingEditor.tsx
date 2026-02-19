@@ -22,13 +22,13 @@ const DATA_TYPES: { value: DataType; label: string }[] = [
 function typeColor(type: string): string {
   const t = type.toLowerCase()
   if (['int', 'integer', 'bigint', 'smallint', 'tinyint', 'float', 'decimal', 'numeric', 'real', 'money', 'smallmoney'].some((x) => t.includes(x)))
-    return 'text-blue-400 bg-blue-950/40 border-blue-800/40'
+    return 'text-blue-700 bg-blue-100 border-blue-300 dark:text-blue-400 dark:bg-blue-950/40 dark:border-blue-800/40'
   if (['date', 'time', 'datetime', 'timestamp'].some((x) => t.includes(x)))
-    return 'text-purple-400 bg-purple-950/40 border-purple-800/40'
+    return 'text-purple-700 bg-purple-100 border-purple-300 dark:text-purple-400 dark:bg-purple-950/40 dark:border-purple-800/40'
   if (['char', 'varchar', 'nchar', 'nvarchar', 'text', 'ntext', 'string'].some((x) => t.includes(x)))
-    return 'text-green-400 bg-green-950/40 border-green-800/40'
+    return 'text-green-700 bg-green-100 border-green-300 dark:text-green-400 dark:bg-green-950/40 dark:border-green-800/40'
   if (['bit', 'bool'].some((x) => t.includes(x)))
-    return 'text-orange-400 bg-orange-950/40 border-orange-800/40'
+    return 'text-orange-700 bg-orange-100 border-orange-300 dark:text-orange-400 dark:bg-orange-950/40 dark:border-orange-800/40'
   return 'text-muted-foreground bg-muted/30 border-border'
 }
 

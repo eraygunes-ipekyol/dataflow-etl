@@ -15,7 +15,7 @@ from app.services import execution_service
 from app.utils.logger import logger
 from app.utils.auth_deps import get_current_user
 
-router = APIRouter(prefix="/executions", tags=["executions"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/executions", tags=["executions"])
 
 
 @router.get("", response_model=list[ExecutionResponse])
@@ -27,6 +27,7 @@ async def list_executions(
     status: Optional[str] = None,      # success|failed|running|pending
     limit: int = 200,
     db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
 ):
     rows = await run_in_threadpool(
         execution_service.list_executions, db, workflow_id, folder_id, date_from, date_to, status, limit
@@ -35,7 +36,7 @@ async def list_executions(
 
 
 @router.get("/{execution_id}", response_model=ExecutionDetail)
-async def get_execution(execution_id: str, db: Session = Depends(get_db)):
+async def get_execution(execution_id: str, db: Session = Depends(get_db), _user=Depends(get_current_user)):
     execution = await run_in_threadpool(execution_service.get_execution, db, execution_id)
     if not execution:
         raise HTTPException(status_code=404, detail="Execution bulunamadı")
@@ -47,12 +48,12 @@ async def get_execution(execution_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{execution_id}/logs", response_model=list[ExecutionLogResponse])
-async def get_execution_logs(execution_id: str, db: Session = Depends(get_db)):
+async def get_execution_logs(execution_id: str, db: Session = Depends(get_db), _user=Depends(get_current_user)):
     return await run_in_threadpool(execution_service.get_execution_logs, db, execution_id)
 
 
 @router.post("/{execution_id}/cancel", status_code=204)
-async def cancel_execution(execution_id: str, db: Session = Depends(get_db)):
+async def cancel_execution(execution_id: str, db: Session = Depends(get_db), _user=Depends(get_current_user)):
     ok = await run_in_threadpool(execution_service.cancel_execution, db, execution_id)
     if not ok:
         raise HTTPException(status_code=400, detail="Execution iptal edilemedi")
@@ -76,6 +77,7 @@ async def run_workflow(
     workflow_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
 ):
     """Workflow'u arka planda başlatır, hemen gerçek execution kaydını döner."""
     from app.models.workflow import Workflow

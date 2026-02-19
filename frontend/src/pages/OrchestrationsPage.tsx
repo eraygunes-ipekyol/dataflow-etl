@@ -43,8 +43,8 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
         isActive
-          ? 'bg-green-900/40 text-green-400 border-green-700'
-          : 'bg-zinc-800 text-zinc-400 border-zinc-600'
+          ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-400 dark:border-green-700'
+          : 'bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-600'
       }`}
     >
       {isActive ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
@@ -469,7 +469,7 @@ function OrcRow({ orch, workflows, onEdit }: OrcRowProps) {
               onClick={() => run.mutate(orch.id)}
               disabled={run.isPending}
               title="Şimdi Çalıştır"
-              className="rounded p-1.5 hover:bg-green-900/20 text-green-500 transition-colors disabled:opacity-50"
+              className="rounded p-1.5 hover:bg-green-100 dark:hover:bg-green-900/20 text-green-600 dark:text-green-500 transition-colors disabled:opacity-50"
             >
               <Play className="h-4 w-4" />
             </button>
@@ -487,8 +487,8 @@ function OrcRow({ orch, workflows, onEdit }: OrcRowProps) {
               title={orch.is_active ? 'Pasif Et' : 'Aktif Et'}
               className={`rounded p-1.5 transition-colors ${
                 orch.is_active
-                  ? 'hover:bg-yellow-900/20 text-yellow-500'
-                  : 'hover:bg-green-900/20 text-green-500'
+                  ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-yellow-600 dark:text-yellow-500'
+                  : 'hover:bg-green-100 dark:hover:bg-green-900/20 text-green-600 dark:text-green-500'
               }`}
             >
               {orch.is_active ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}

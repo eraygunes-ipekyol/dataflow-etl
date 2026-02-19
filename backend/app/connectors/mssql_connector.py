@@ -128,20 +128,49 @@ def _to_mssql_safe(value: Any, target_type: Optional[str] = None) -> Any:
 
 
 class MssqlConnector(BaseConnector):
+    """
+    MSSQL bağlantı yöneticisi.
+    _conn: Tek bir bağlantıyı instance'ta cache'ler.
+    Tüm operasyonlar aynı bağlantıyı paylaşır; close() ile serbest bırakılır.
+    """
+
     def __init__(self, config: dict):
         self.config = config
+        self._conn: Optional[pymssql.Connection] = None
 
     def _get_connection(self) -> pymssql.Connection:
+        """Mevcut bağlantıyı döner; yoksa veya kopuksa yeni açar."""
+        if self._conn is not None:
+            # Bağlantı hâlâ canlı mı kontrol et (ucuz ping)
+            try:
+                _cur = self._conn.cursor()
+                _cur.execute("SELECT 1")
+                _cur.close()
+                return self._conn
+            except Exception:
+                self._conn = None
+
         c = self.config
-        return pymssql.connect(
+        self._conn = pymssql.connect(
             server=c["host"],
             port=int(c.get("port", 1433)),
             database=c["database"],
             user=c["username"],
             password=c["password"],
-            login_timeout=10,
+            login_timeout=15,
             tds_version="7.4",
+            appname="DataFlowETL",
         )
+        return self._conn
+
+    def close(self):
+        """Bağlantıyı kapat ve sıfırla."""
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
 
     def test_connection(self) -> dict:
         try:
@@ -149,7 +178,6 @@ class MssqlConnector(BaseConnector):
             cursor = conn.cursor()
             cursor.execute("SELECT 1 AS test")
             cursor.close()
-            conn.close()
             return {"success": True, "message": "Bağlantı başarılı"}
         except Exception as e:
             logger.error(f"MSSQL bağlantı testi başarısız: {e}")
@@ -163,7 +191,6 @@ class MssqlConnector(BaseConnector):
         )
         schemas = [row[0] for row in cursor.fetchall()]
         cursor.close()
-        conn.close()
         return schemas
 
     def get_tables(self, schema: str) -> list[dict]:
@@ -189,7 +216,6 @@ class MssqlConnector(BaseConnector):
                 {"name": row[0], "schema_name": row[1], "row_count": row[2]}
             )
         cursor.close()
-        conn.close()
         return tables
 
     def get_columns(self, schema: str, table: str) -> list[dict]:
@@ -231,22 +257,51 @@ class MssqlConnector(BaseConnector):
                 }
             )
         cursor.close()
-        conn.close()
         return columns
 
     def preview_data(self, schema: str, table: str, limit: int = 100) -> dict:
+        """Aynı bağlantı üzerinden hem kolon meta hem veri çek — ekstra TCP yok."""
         conn = self._get_connection()
-        cursor = conn.cursor(as_dict=True)
 
-        columns_meta = self.get_columns(schema, table)
+        # Kolon meta — aynı conn
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT
+                c.COLUMN_NAME, c.DATA_TYPE,
+                CASE WHEN c.IS_NULLABLE = 'YES' THEN 1 ELSE 0 END,
+                c.CHARACTER_MAXIMUM_LENGTH,
+                CASE WHEN kcu.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END
+            FROM INFORMATION_SCHEMA.COLUMNS c
+            LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                ON kcu.TABLE_SCHEMA = c.TABLE_SCHEMA
+                AND kcu.TABLE_NAME = c.TABLE_NAME
+                AND kcu.COLUMN_NAME = c.COLUMN_NAME
+                AND kcu.CONSTRAINT_NAME IN (
+                    SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+                    WHERE CONSTRAINT_TYPE = 'PRIMARY KEY'
+                    AND TABLE_SCHEMA = c.TABLE_SCHEMA AND TABLE_NAME = c.TABLE_NAME
+                )
+            WHERE c.TABLE_SCHEMA = %s AND c.TABLE_NAME = %s
+            ORDER BY c.ORDINAL_POSITION
+            """,
+            (schema, table),
+        )
+        columns_meta = [
+            {"name": r[0], "data_type": r[1], "nullable": bool(r[2]),
+             "max_length": r[3], "is_primary_key": bool(r[4])}
+            for r in cursor.fetchall()
+        ]
+        cursor.close()
 
+        # Veri — aynı conn
         safe_schema = schema.replace("]", "]]")
         safe_table = table.replace("]", "]]")
-        cursor.execute(f"SELECT TOP {limit} * FROM [{safe_schema}].[{safe_table}]")
-
-        rows = list(cursor.fetchall())
-        cursor.close()
-        conn.close()
+        col_names = [c["name"] for c in columns_meta]
+        data_cursor = conn.cursor(as_dict=True)
+        data_cursor.execute(f"SELECT TOP {limit} * FROM [{safe_schema}].[{safe_table}]")
+        rows = list(data_cursor.fetchall())
+        data_cursor.close()
 
         return {"columns": columns_meta, "rows": rows, "total_rows": len(rows)}
 
@@ -286,7 +341,7 @@ class MssqlConnector(BaseConnector):
         ]
 
         cursor.close()
-        conn.close()
+        # conn.close() kaldırıldı — instance bağlantısı reuse ediliyor
 
         return {"columns": columns, "rows": rows, "total_rows": len(rows)}
 
@@ -304,7 +359,7 @@ class MssqlConnector(BaseConnector):
             yield list(rows)
 
         cursor.close()
-        conn.close()
+        # conn.close() kaldırıldı — instance bağlantısı reuse ediliyor
 
     def get_column_types(self, schema: str, table: str) -> dict[str, str]:
         """Hedef tablonun kolon adı → DATA_TYPE haritasını döner. Cache için ayrı metot."""
@@ -317,7 +372,6 @@ class MssqlConnector(BaseConnector):
         )
         result = {name: dtype.lower() for name, dtype in cur.fetchall()}
         cur.close()
-        conn.close()
         return result
 
     def write_chunk(
@@ -410,7 +464,7 @@ class MssqlConnector(BaseConnector):
             raise
         finally:
             cursor.close()
-            conn.close()
+            # conn.close() kaldırıldı — instance bağlantısı reuse ediliyor
 
         if skipped:
             logger.warning(f"{skipped} satır hata nedeniyle atlandı ({schema}.{table})")
@@ -428,8 +482,3 @@ class MssqlConnector(BaseConnector):
         except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
-
-    def close(self):
-        pass  # Bağlantılar her işlemde açılıp kapatılıyor

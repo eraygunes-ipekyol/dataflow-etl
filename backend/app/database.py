@@ -28,8 +28,11 @@ engine = create_engine(
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA journal_mode=WAL")        # Concurrent read/write
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA synchronous=NORMAL")      # WAL modunda güvenli, daha hızlı
+    cursor.execute("PRAGMA cache_size=-32000")       # 32MB sayfa cache'i
+    cursor.execute("PRAGMA temp_store=MEMORY")       # Geçici tablolar RAM'de
     cursor.close()
 
 

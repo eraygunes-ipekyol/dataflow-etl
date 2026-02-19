@@ -1,3 +1,4 @@
+import io
 import logging
 import sys
 
@@ -9,7 +10,13 @@ def setup_logger(name: str = "dataflow", level: int = logging.INFO) -> logging.L
 
     logger.setLevel(level)
 
-    handler = logging.StreamHandler(sys.stdout)
+    # Windows'ta cp1252 encoding sorununu önlemek için UTF-8 stream kullan
+    if sys.platform == "win32" and hasattr(sys.stdout, "buffer"):
+        utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    else:
+        utf8_stdout = sys.stdout
+
+    handler = logging.StreamHandler(utf8_stdout)
     handler.setLevel(level)
 
     formatter = logging.Formatter(

@@ -1,4 +1,3 @@
-import asyncio
 import time
 import traceback
 from contextlib import asynccontextmanager
@@ -15,7 +14,7 @@ from app.services import orchestration_service, schedule_service
 from app.services.auth_service import ensure_default_admin
 from app.utils.logger import logger
 
-REQUEST_TIMEOUT_SECONDS = 60  # Herhangi bir istek için maksimum süre
+REQUEST_TIMEOUT_SECONDS = 120  # Herhangi bir istek için maksimum süre (long-running ETL'ler için)
 
 
 @asynccontextmanager
@@ -66,27 +65,22 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ── Request Timeout Middleware ─────────────────────────────────────────────────
+# NOT: asyncio.wait_for(call_next, ...) Windows'ta run_in_threadpool ile deadlock
+# yapıyor. Bunun yerine sadece loglama yapıyoruz; gerçek timeout MSSQL login_timeout
+# ve sorgu düzeyinde yönetiliyor.
 @app.middleware("http")
 async def timeout_middleware(request: Request, call_next):
-    """Her isteğe REQUEST_TIMEOUT_SECONDS saniyelik timeout uygular."""
+    """Yavaş istekleri loglar ve yanıtı geçirir."""
     start = time.time()
     try:
-        return await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
+        response = await call_next(request)
         elapsed = time.time() - start
-        logger.warning(
-            f"Request timeout [{request.method} {request.url.path}] "
-            f"{elapsed:.1f}s > {REQUEST_TIMEOUT_SECONDS}s"
-        )
-        return JSONResponse(
-            status_code=504,
-            content={
-                "detail": (
-                    f"İstek zaman aşımına uğradı ({REQUEST_TIMEOUT_SECONDS}s). "
-                    "Bağlantı yavaş veya sorgu çok uzun sürdü."
-                )
-            },
-        )
+        if elapsed > 10:
+            logger.warning(
+                f"Yavaş istek [{request.method} {request.url.path}] "
+                f"{elapsed:.1f}s — status={response.status_code}"
+            )
+        return response
     except Exception as exc:
         tb = traceback.format_exc()
         logger.error(f"Middleware hatası [{request.method} {request.url.path}]: {exc}\n{tb}")
@@ -96,19 +90,7 @@ async def timeout_middleware(request: Request, call_next):
         )
 
 
-# ── Request Logging Middleware ─────────────────────────────────────────────────
-@app.middleware("http")
-async def logging_middleware(request: Request, call_next):
-    """Yavaş istekleri loglar (>5s)."""
-    start = time.time()
-    response = await call_next(request)
-    elapsed = time.time() - start
-    if elapsed > 5:
-        logger.warning(
-            f"Yavaş istek [{request.method} {request.url.path}] "
-            f"{elapsed:.2f}s — status={response.status_code}"
-        )
-    return response
+# logging_middleware kaldırıldı — timeout_middleware ile birleştirildi
 
 
 app.include_router(health.router, prefix="/api/v1")

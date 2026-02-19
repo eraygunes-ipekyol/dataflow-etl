@@ -18,11 +18,11 @@ const actionLabels: Record<string, string> = {
 }
 
 const actionColors: Record<string, string> = {
-  create: 'text-emerald-400 bg-emerald-400/10',
-  update: 'text-blue-400 bg-blue-400/10',
-  delete: 'text-red-400 bg-red-400/10',
-  restore: 'text-amber-400 bg-amber-400/10',
-  login: 'text-purple-400 bg-purple-400/10',
+  create:  'text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-400/10',
+  update:  'text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-400/10',
+  delete:  'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-400/10',
+  restore: 'text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-400/10',
+  login:   'text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-400/10',
 }
 
 

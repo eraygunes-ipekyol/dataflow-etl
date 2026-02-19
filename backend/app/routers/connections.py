@@ -1,3 +1,4 @@
+import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -17,6 +18,28 @@ from app.schemas.connection import (
 from app.services import audit_service, connection_service, data_preview_service
 from app.utils.auth_deps import get_current_user
 from app.utils.logger import logger
+
+# ── Basit in-memory TTL cache (schema/table/column listesi için) ──────────────
+_CACHE_TTL = 300  # 5 dakika
+_cache: dict[str, tuple[float, list]] = {}  # key → (timestamp, data)
+
+
+def _cache_get(key: str) -> list | None:
+    entry = _cache.get(key)
+    if entry and (time.time() - entry[0]) < _CACHE_TTL:
+        return entry[1]
+    return None
+
+
+def _cache_set(key: str, data: list) -> None:
+    _cache[key] = (time.time(), data)
+
+
+def _cache_invalidate_connection(connection_id: str) -> None:
+    """Bağlantı güncellendiğinde ilgili cache'i temizle."""
+    keys_to_del = [k for k in _cache if k.startswith(f"{connection_id}:")]
+    for k in keys_to_del:
+        del _cache[k]
 
 router = APIRouter(prefix="/connections", tags=["connections"], dependencies=[Depends(get_current_user)])
 
@@ -86,6 +109,7 @@ async def update_connection(
     connection = await run_in_threadpool(connection_service.update_connection, db, connection_id, data)
     if not connection:
         raise HTTPException(status_code=404, detail="Bağlantı bulunamadı")
+    _cache_invalidate_connection(connection_id)  # Bağlantı değişti → cache sıfırla
 
     await run_in_threadpool(
         audit_service.log_action, db,
@@ -150,12 +174,18 @@ async def test_connection_config(data: ConnectionCreate):
 
 @router.get("/{connection_id}/schemas", response_model=list[SchemaInfo])
 async def get_schemas(connection_id: str, db: Session = Depends(get_db)):
-    """Şema/dataset listesi — blocking DB+network çağrısı thread pool'da."""
+    """Şema/dataset listesi — 5 dakika cache'li, blocking çağrı thread pool'da."""
+    cache_key = f"{connection_id}:schemas"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
     try:
         schemas = await run_in_threadpool(
             data_preview_service.get_schemas, db, connection_id
         )
-        return [SchemaInfo(name=s) for s in schemas]
+        result = [SchemaInfo(name=s) for s in schemas]
+        _cache_set(cache_key, result)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -167,12 +197,18 @@ async def get_schemas(connection_id: str, db: Session = Depends(get_db)):
 async def get_tables(
     connection_id: str, schema: str = "dbo", db: Session = Depends(get_db)
 ):
-    """Tablo listesi — blocking DB+network çağrısı thread pool'da."""
+    """Tablo listesi — 5 dakika cache'li, blocking çağrı thread pool'da."""
+    cache_key = f"{connection_id}:tables:{schema}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
     try:
         tables = await run_in_threadpool(
             data_preview_service.get_tables, db, connection_id, schema
         )
-        return [TableInfo(**t) for t in tables]
+        result = [TableInfo(**t) for t in tables]
+        _cache_set(cache_key, result)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -187,12 +223,18 @@ async def get_columns(
     schema: str = "dbo",
     db: Session = Depends(get_db),
 ):
-    """Kolon listesi — blocking çağrı thread pool'da."""
+    """Kolon listesi — 5 dakika cache'li, blocking çağrı thread pool'da."""
+    cache_key = f"{connection_id}:columns:{schema}.{table}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
     try:
         columns = await run_in_threadpool(
             data_preview_service.get_columns, db, connection_id, schema, table
         )
-        return [ColumnInfo(**c) for c in columns]
+        result = [ColumnInfo(**c) for c in columns]
+        _cache_set(cache_key, result)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
