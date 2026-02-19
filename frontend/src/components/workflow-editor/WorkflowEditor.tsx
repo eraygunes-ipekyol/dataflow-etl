@@ -92,9 +92,10 @@ export default function WorkflowEditor({ workflow }: Props) {
           level?: string
         }
 
-        // Execution bitti — aktif node temizle, WS kapat; log viewer açık kalır
+        // Execution bitti — aktif node + satır sayaçları temizle, WS kapat; log viewer açık kalır
         if (data.type === 'done') {
           setActiveNodeId(null)
+          setNodeRowCounts({})
           setLastExecutionId(activeExecutionId)
           setActiveExecutionId(null)
           return
