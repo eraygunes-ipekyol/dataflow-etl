@@ -56,7 +56,8 @@ export default function WorkflowEditor({ workflow }: Props) {
   )
   const [saving, setSaving] = useState(false)
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null)
-  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null)
+  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null)       // WebSocket bağlantısı için
+  const [logViewerExecutionId, setLogViewerExecutionId] = useState<string | null>(null) // Log viewer göstermek için
   // Son tamamlanan execution ID'sini sakla — "Son Çalışma" butonu için
   const [lastExecutionId, setLastExecutionId] = useState<string | null>(null)
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null)
@@ -91,10 +92,11 @@ export default function WorkflowEditor({ workflow }: Props) {
           level?: string
         }
 
-        // Execution bitti — aktif node temizle
+        // Execution bitti — aktif node temizle, WS kapat; log viewer açık kalır
         if (data.type === 'done') {
           setActiveNodeId(null)
           setLastExecutionId(activeExecutionId)
+          setActiveExecutionId(null)
           return
         }
 
@@ -102,11 +104,18 @@ export default function WorkflowEditor({ workflow }: Props) {
         if (data.node_id) {
           setActiveNodeId(data.node_id)
 
-          // "X satır yazıldı" veya "X satır okundu" log mesajlarından sayı çek
+          // Log mesajlarından satır sayısı çek — tüm backend formatlarını yakala
           if (data.message) {
+            // "500 satır yazıldı" veya "500 satır yazıldı (toplam: 1000)"
             const writeMatch = data.message.match(/(\d+)\s+satır\s+yazıldı/)
-            const readMatch  = data.message.match(/^Chunk\s+\d+:\s+(\d+)\s+satır\s+okundu/)
-            const count = writeMatch?.[1] ?? readMatch?.[1]
+            // "Chunk 1: 5000 satır okundu"
+            const readMatch  = data.message.match(/Chunk\s+\d+:\s+(\d+)\s+satır\s+okundu/)
+            // "Chunk 1: 5000 satır" (genel chunk log — transform/filter için)
+            const chunkMatch = data.message.match(/Chunk\s+\d+:\s+(\d+)\s+satır(?!\s+okundu|\s+yazıldı)/)
+            // "SQL tamamlandı. Etkilenen satır: 42"
+            const sqlMatch   = data.message.match(/Etkilenen satır:\s+(\d+)/)
+
+            const count = writeMatch?.[1] ?? readMatch?.[1] ?? chunkMatch?.[1] ?? sqlMatch?.[1]
             if (count) {
               const n = parseInt(count, 10)
               setNodeRowCounts((prev) => ({
@@ -378,14 +387,16 @@ export default function WorkflowEditor({ workflow }: Props) {
           <RunButton
             workflowId={workflow.id}
             onStarted={(id) => {
-              setNodeRowCounts({})   // önceki sayaçları sıfırla
-              setActiveExecutionId(id)
+              setNodeRowCounts({})        // önceki sayaçları sıfırla
+              setActiveNodeId(null)       // önceki aktif node'u temizle
+              setActiveExecutionId(id)    // WebSocket başlat
+              setLogViewerExecutionId(id) // Log viewer aç
             }}
           />
           {/* Son çalışma butonu — sadece tamamlanmış execution varsa göster */}
-          {lastExecutionId && !activeExecutionId && (
+          {lastExecutionId && !logViewerExecutionId && (
             <button
-              onClick={() => setActiveExecutionId(lastExecutionId)}
+              onClick={() => setLogViewerExecutionId(lastExecutionId)}
               title="Son çalışmanın loglarını görüntüle"
               className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
             >
@@ -492,11 +503,11 @@ export default function WorkflowEditor({ workflow }: Props) {
         />
       )}
 
-      {/* Canlı log viewer */}
-      {activeExecutionId && (
+      {/* Canlı log viewer — logViewerExecutionId ile bağımsız yönetilir */}
+      {logViewerExecutionId && (
         <ExecutionLogViewer
-          executionId={activeExecutionId}
-          onClose={() => setActiveExecutionId(null)}
+          executionId={logViewerExecutionId}
+          onClose={() => setLogViewerExecutionId(null)}
           nodes={nodes.map((n) => ({ id: n.id, label: (n.data as { label?: string }).label }))}
         />
       )}

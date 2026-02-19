@@ -70,7 +70,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ve sorgu düzeyinde yönetiliyor.
 @app.middleware("http")
 async def timeout_middleware(request: Request, call_next):
-    """Yavaş istekleri loglar ve yanıtı geçirir."""
+    """Yavaş istekleri loglar ve yanıtı geçirir. WebSocket upgrade isteklerini atlar."""
+    # WebSocket handshake: HTTP middleware uygulanamaz, direkt geç
+    if request.headers.get("upgrade", "").lower() == "websocket":
+        return await call_next(request)
+
     start = time.time()
     try:
         response = await call_next(request)

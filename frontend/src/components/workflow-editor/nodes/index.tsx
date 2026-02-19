@@ -26,15 +26,15 @@ const handleStyle = { width: 14, height: 14, border: '2px solid' }
 function NodeLiveBadge({ isActive, liveRows }: { isActive?: boolean; liveRows?: number | null }) {
   if (!isActive && !liveRows) return null
   return (
-    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 z-20 pointer-events-none">
+    <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 z-20 pointer-events-none whitespace-nowrap">
       {isActive && (
-        <span className="flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-lg animate-pulse">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-white" />
+        <span className="flex items-center gap-1.5 rounded-full bg-green-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg shadow-green-900/50 animate-pulse">
+          <span className="inline-block w-2 h-2 rounded-full bg-white" />
           Çalışıyor
         </span>
       )}
       {liveRows != null && liveRows > 0 && (
-        <span className="rounded-full bg-zinc-900 border border-zinc-600 px-2 py-0.5 text-[10px] font-mono text-green-400 shadow">
+        <span className="rounded-full bg-black/80 border border-green-500/50 px-2.5 py-1 text-[11px] font-mono font-semibold text-green-400 shadow-lg">
           {liveRows.toLocaleString('tr-TR')} satır
         </span>
       )}
@@ -267,11 +267,12 @@ DestinationNode.displayName = 'DestinationNode'
 // ======= TRANSFORM NODE =======
 export const TransformNode = memo(({ id, data, selected, isConnectable }: NodeProps) => {
   const isActive = !!data._isActive
+  const liveRows = data._liveRows as number | null | undefined
   return (
     <div
       className={`${nodeBase} text-yellow-100 transition-all duration-300 ${
         isActive
-          ? 'bg-yellow-900 border-green-400 ring-2 ring-green-400/60'
+          ? 'bg-yellow-900 border-green-400 ring-2 ring-green-400/60 shadow-green-900/50 shadow-xl'
           : 'bg-yellow-950 border-yellow-500'
       } ${selected ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-yellow-950' : ''
       } ${data.disabled ? 'opacity-40 grayscale' : ''}`}
@@ -290,7 +291,7 @@ export const TransformNode = memo(({ id, data, selected, isConnectable }: NodePr
           <div className="text-[10px] text-yellow-400/70 uppercase tracking-wider">transform</div>
         </div>
       </div>
-      <NodeLiveBadge isActive={isActive} />
+      <NodeLiveBadge isActive={isActive} liveRows={liveRows} />
       <Handle
         type="source"
         position={Position.Bottom}
@@ -305,11 +306,12 @@ TransformNode.displayName = 'TransformNode'
 // ======= FILTER NODE =======
 export const FilterNode = memo(({ id, data, selected, isConnectable }: NodeProps) => {
   const isActive = !!data._isActive
+  const liveRows = data._liveRows as number | null | undefined
   return (
     <div
       className={`${nodeBase} text-purple-100 transition-all duration-300 ${
         isActive
-          ? 'bg-purple-900 border-green-400 ring-2 ring-green-400/60'
+          ? 'bg-purple-900 border-green-400 ring-2 ring-green-400/60 shadow-green-900/50 shadow-xl'
           : 'bg-purple-950 border-purple-500'
       } ${selected ? 'ring-2 ring-purple-400 ring-offset-1 ring-offset-purple-950' : ''
       } ${data.disabled ? 'opacity-40 grayscale' : ''}`}
@@ -333,7 +335,7 @@ export const FilterNode = memo(({ id, data, selected, isConnectable }: NodeProps
           {String(data.config.condition)}
         </div>
       )}
-      <NodeLiveBadge isActive={isActive} />
+      <NodeLiveBadge isActive={isActive} liveRows={liveRows} />
       <Handle
         type="source"
         position={Position.Bottom}
@@ -346,75 +348,91 @@ export const FilterNode = memo(({ id, data, selected, isConnectable }: NodeProps
 FilterNode.displayName = 'FilterNode'
 
 // ======= JOIN NODE =======
-export const JoinNode = memo(({ id, data, selected, isConnectable }: NodeProps) => (
-  <div
-    className={`${nodeBase} bg-orange-950 border-orange-500 text-orange-100 ${
-      selected ? 'ring-2 ring-orange-400 ring-offset-1 ring-offset-orange-950' : ''
-    } ${data.disabled ? 'opacity-40 grayscale' : ''}`}
-  >
-    <NodeActions nodeId={id} disabled={!!data.disabled} />
+export const JoinNode = memo(({ id, data, selected, isConnectable }: NodeProps) => {
+  const isActive = !!data._isActive
+  const liveRows = data._liveRows as number | null | undefined
+  return (
+    <div
+      className={`${nodeBase} text-orange-100 transition-all duration-300 ${
+        isActive
+          ? 'bg-orange-900 border-green-400 ring-2 ring-green-400/60 shadow-green-900/50 shadow-xl'
+          : 'bg-orange-950 border-orange-500'
+      } ${selected ? 'ring-2 ring-orange-400 ring-offset-1 ring-offset-orange-950' : ''
+      } ${data.disabled ? 'opacity-40 grayscale' : ''}`}
+    >
+      <NodeActions nodeId={id} disabled={!!data.disabled} />
 
-    <Handle
-      type="target"
-      position={Position.Top}
-      id="left"
-      isConnectable={isConnectable}
-      style={{ ...handleStyle, background: '#fb923c', borderColor: '#9a3412', left: '30%' }}
-    />
-    <Handle
-      type="target"
-      position={Position.Top}
-      id="right"
-      isConnectable={isConnectable}
-      style={{ ...handleStyle, background: '#fb923c', borderColor: '#9a3412', left: '70%' }}
-    />
-    <div className="flex items-center gap-2">
-      <Combine className="h-5 w-5 text-orange-400 flex-shrink-0" />
-      <div className="min-w-0">
-        <div className="truncate font-semibold">{data.label || 'Join'}</div>
-        <div className="text-[10px] text-orange-400/70 uppercase tracking-wider">join · 2 inputs</div>
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="left"
+        isConnectable={isConnectable}
+        style={{ ...handleStyle, background: '#fb923c', borderColor: '#9a3412', left: '30%' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="right"
+        isConnectable={isConnectable}
+        style={{ ...handleStyle, background: '#fb923c', borderColor: '#9a3412', left: '70%' }}
+      />
+      <div className="flex items-center gap-2">
+        <Combine className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-green-400' : 'text-orange-400'}`} />
+        <div className="min-w-0">
+          <div className="truncate font-semibold">{data.label || 'Join'}</div>
+          <div className="text-[10px] text-orange-400/70 uppercase tracking-wider">join · 2 inputs</div>
+        </div>
       </div>
+      <NodeLiveBadge isActive={isActive} liveRows={liveRows} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={isConnectable}
+        style={{ ...handleStyle, background: '#fb923c', borderColor: '#9a3412' }}
+      />
     </div>
-    <Handle
-      type="source"
-      position={Position.Bottom}
-      isConnectable={isConnectable}
-      style={{ ...handleStyle, background: '#fb923c', borderColor: '#9a3412' }}
-    />
-  </div>
-))
+  )
+})
 JoinNode.displayName = 'JoinNode'
 
 // ======= WORKFLOW REF NODE =======
-export const WorkflowRefNode = memo(({ id, data, selected, isConnectable }: NodeProps) => (
-  <div
-    className={`${nodeBase} bg-pink-950 border-pink-500 text-pink-100 ${
-      selected ? 'ring-2 ring-pink-400 ring-offset-1 ring-offset-pink-950' : ''
-    } ${data.disabled ? 'opacity-40 grayscale' : ''}`}
-  >
-    <NodeActions nodeId={id} disabled={!!data.disabled} />
+export const WorkflowRefNode = memo(({ id, data, selected, isConnectable }: NodeProps) => {
+  const isActive = !!data._isActive
+  const liveRows = data._liveRows as number | null | undefined
+  return (
+    <div
+      className={`${nodeBase} text-pink-100 transition-all duration-300 ${
+        isActive
+          ? 'bg-pink-900 border-green-400 ring-2 ring-green-400/60 shadow-green-900/50 shadow-xl'
+          : 'bg-pink-950 border-pink-500'
+      } ${selected ? 'ring-2 ring-pink-400 ring-offset-1 ring-offset-pink-950' : ''
+      } ${data.disabled ? 'opacity-40 grayscale' : ''}`}
+    >
+      <NodeActions nodeId={id} disabled={!!data.disabled} />
 
-    <Handle
-      type="target"
-      position={Position.Top}
-      isConnectable={isConnectable}
-      style={{ ...handleStyle, background: '#f472b6', borderColor: '#9d174d' }}
-    />
-    <div className="flex items-center gap-2">
-      <Workflow className="h-5 w-5 text-pink-400 flex-shrink-0" />
-      <div className="min-w-0">
-        <div className="truncate font-semibold">{data.label || 'Workflow Ref'}</div>
-        <div className="text-[10px] text-pink-400/70 uppercase tracking-wider">workflow ref</div>
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={isConnectable}
+        style={{ ...handleStyle, background: '#f472b6', borderColor: '#9d174d' }}
+      />
+      <div className="flex items-center gap-2">
+        <Workflow className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-green-400' : 'text-pink-400'}`} />
+        <div className="min-w-0">
+          <div className="truncate font-semibold">{data.label || 'Workflow Ref'}</div>
+          <div className="text-[10px] text-pink-400/70 uppercase tracking-wider">workflow ref</div>
+        </div>
       </div>
+      <NodeLiveBadge isActive={isActive} liveRows={liveRows} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={isConnectable}
+        style={{ ...handleStyle, background: '#f472b6', borderColor: '#9d174d' }}
+      />
     </div>
-    <Handle
-      type="source"
-      position={Position.Bottom}
-      isConnectable={isConnectable}
-      style={{ ...handleStyle, background: '#f472b6', borderColor: '#9d174d' }}
-    />
-  </div>
-))
+  )
+})
 WorkflowRefNode.displayName = 'WorkflowRefNode'
 
 // ======= SQL EXECUTE NODE =======
