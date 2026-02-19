@@ -11,14 +11,16 @@ export default defineConfig({
     },
   },
   server: {
+    port: 8443,
+    host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8444',
         changeOrigin: true,
       },
-      // WebSocket proxy: /ws/api/v1/... → ws://localhost:8000/api/v1/...
+      // WebSocket proxy: /ws/api/v1/... → ws://localhost:8444/api/v1/...
       '/ws/api': {
-        target: 'ws://localhost:8000',
+        target: 'ws://localhost:8444',
         ws: true,
         rewrite: (path) => path.replace(/^\/ws/, ''),
       },
