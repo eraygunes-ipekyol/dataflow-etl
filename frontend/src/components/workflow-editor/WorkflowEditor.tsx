@@ -27,6 +27,7 @@ import DeletableEdge from './edges/DeleteableEdge'
 import NodeConfigPanel from '@/components/mapping/NodeConfigPanel'
 import RunButton from '@/components/executions/RunButton'
 import ExecutionLogViewer from '@/components/executions/ExecutionLogViewer'
+import WorkflowHistoryPanel from '@/components/workflows/WorkflowHistoryPanel'
 
 interface Props {
   workflow: Workflow
@@ -62,6 +63,7 @@ export default function WorkflowEditor({ workflow }: Props) {
   const [renamingTitle, setRenamingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(workflow.name)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Canlı execution durumu: aktif node_id ve node başına satır sayısı
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
@@ -392,6 +394,19 @@ export default function WorkflowEditor({ workflow }: Props) {
             </button>
           )}
           <div className="w-px h-6 bg-border" />
+          {/* Geçmiş butonu */}
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            title="Değişiklik Geçmişi"
+            className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+              showHistory
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-card hover:bg-accent'
+            }`}
+          >
+            <History className="h-4 w-4" />
+            Geçmiş
+          </button>
           <button
             onClick={handleValidate}
             disabled={validateWorkflow.isPending}
@@ -425,7 +440,7 @@ export default function WorkflowEditor({ workflow }: Props) {
         <NodePanel onAddNode={handleAddNode} />
 
         {/* Canvas */}
-        <div className="flex-1">
+        <div className="flex-1 relative">
           <ReactFlow
             nodes={nodesWithLive}
             edges={edgesWithHover}
@@ -452,6 +467,18 @@ export default function WorkflowEditor({ workflow }: Props) {
             />
           </ReactFlow>
         </div>
+
+        {/* Workflow history panel */}
+        {showHistory && (
+          <WorkflowHistoryPanel
+            workflowId={workflow.id}
+            onClose={() => setShowHistory(false)}
+            onRestored={() => {
+              // Sayfa yenilenerek güncel workflow yüklenir
+              window.location.reload()
+            }}
+          />
+        )}
       </div>
 
       {/* Node config side panel */}

@@ -13,8 +13,9 @@ from app.schemas.data_preview import (
 from app.schemas.connection import ColumnInfo
 from app.services import data_preview_service
 from app.utils.logger import logger
+from app.utils.auth_deps import get_current_user
 
-router = APIRouter(prefix="/preview", tags=["data-preview"])
+router = APIRouter(prefix="/preview", tags=["data-preview"], dependencies=[Depends(get_current_user)])
 
 
 class QueryColumnsRequest(BaseModel):

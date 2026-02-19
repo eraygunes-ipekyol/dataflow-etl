@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.user import User
 from app.schemas.connection import (
     ColumnInfo,
     ConnectionCreate,
@@ -13,10 +14,16 @@ from app.schemas.connection import (
     SchemaInfo,
     TableInfo,
 )
-from app.services import connection_service, data_preview_service
+from app.services import audit_service, connection_service, data_preview_service
+from app.utils.auth_deps import get_current_user
 from app.utils.logger import logger
 
-router = APIRouter(prefix="/connections", tags=["connections"])
+router = APIRouter(prefix="/connections", tags=["connections"], dependencies=[Depends(get_current_user)])
+
+
+def _get_ip(request: Request) -> str:
+    fwd = request.headers.get("X-Forwarded-For")
+    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
 
 
 @router.get("", response_model=list[ConnectionResponse])
@@ -25,11 +32,26 @@ async def list_connections(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ConnectionResponse, status_code=201)
-async def create_connection(data: ConnectionCreate, db: Session = Depends(get_db)):
+async def create_connection(
+    data: ConnectionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
-        return await run_in_threadpool(connection_service.create_connection, db, data)
+        connection = await run_in_threadpool(connection_service.create_connection, db, data)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await run_in_threadpool(
+        audit_service.log_action, db,
+        current_user.id, current_user.username,
+        "create", "connection",
+        connection.id, connection.name,
+        None, {"type": connection.type},
+        _get_ip(request),
+    )
+    return connection
 
 
 @router.get("/{connection_id}", response_model=ConnectionDetail)
@@ -52,19 +74,51 @@ async def get_connection(connection_id: str, db: Session = Depends(get_db)):
 
 @router.put("/{connection_id}", response_model=ConnectionResponse)
 async def update_connection(
-    connection_id: str, data: ConnectionUpdate, db: Session = Depends(get_db)
+    connection_id: str,
+    data: ConnectionUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    old = await run_in_threadpool(connection_service.get_connection, db, connection_id)
+    old_value = {"name": old.name, "type": old.type, "is_active": old.is_active} if old else None
+
     connection = await run_in_threadpool(connection_service.update_connection, db, connection_id, data)
     if not connection:
         raise HTTPException(status_code=404, detail="Bağlantı bulunamadı")
+
+    await run_in_threadpool(
+        audit_service.log_action, db,
+        current_user.id, current_user.username,
+        "update", "connection",
+        connection_id, connection.name,
+        old_value, {"name": connection.name, "type": connection.type, "is_active": connection.is_active},
+        _get_ip(request),
+    )
     return connection
 
 
 @router.delete("/{connection_id}", status_code=204)
-async def delete_connection(connection_id: str, db: Session = Depends(get_db)):
+async def delete_connection(
+    connection_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    old = await run_in_threadpool(connection_service.get_connection, db, connection_id)
+    name = old.name if old else connection_id
+
     ok = await run_in_threadpool(connection_service.delete_connection, db, connection_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Bağlantı bulunamadı")
+
+    await run_in_threadpool(
+        audit_service.log_action, db,
+        current_user.id, current_user.username,
+        "delete", "connection",
+        connection_id, name,
+        None, None, _get_ip(request),
+    )
 
 
 @router.post("/{connection_id}/test", response_model=ConnectionTestResult)

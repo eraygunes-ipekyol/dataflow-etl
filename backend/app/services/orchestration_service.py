@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+from app.utils.timezone import now_istanbul
 from typing import Optional
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -79,7 +80,7 @@ def _run_orchestration_job(orchestration_id: str) -> None:
         orch = db.get(Orchestration, orchestration_id)
         if not orch or not orch.is_active:
             return
-        orch.last_run_at = datetime.now(timezone.utc)
+        orch.last_run_at = now_istanbul()
         db.commit()
 
         logger.info("Orkestrasyon başlatıldı: %s (%s)", orch.name, orchestration_id)
@@ -369,7 +370,7 @@ def run_orchestration_now(db: Session, orchestration_id: str) -> OrchestrationRu
     orch = db.get(Orchestration, orchestration_id)
     if not orch:
         raise ValueError(f"Orkestrasyon bulunamadı: {orchestration_id}")
-    orch.last_run_at = datetime.now(timezone.utc)
+    orch.last_run_at = now_istanbul()
     db.commit()
     return _execute_orchestration(db, orch)
 

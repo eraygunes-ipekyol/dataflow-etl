@@ -4,7 +4,7 @@ APScheduler kullanarak cron tabanlı workflow çalıştırma.
 """
 from __future__ import annotations
 
-from datetime import timezone
+from app.utils.timezone import now_istanbul
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -44,7 +44,6 @@ def _run_scheduled_workflow(schedule_id: str, workflow_id: str) -> None:
     if _SessionLocal is None:
         return
 
-    from datetime import datetime
     from app.services import execution_service
 
     db: Session = _SessionLocal()
@@ -52,7 +51,7 @@ def _run_scheduled_workflow(schedule_id: str, workflow_id: str) -> None:
         logger.info("Zamanlanmış çalıştırma: schedule=%s workflow=%s", schedule_id, workflow_id)
         schedule = db.get(Schedule, schedule_id)
         if schedule:
-            schedule.last_run_at = datetime.now(timezone.utc)
+            schedule.last_run_at = now_istanbul()
             db.commit()
 
         execution_service.run_workflow(db, workflow_id, trigger_type="scheduled")
@@ -121,7 +120,6 @@ def get_schedule(db: Session, schedule_id: str) -> Optional[Schedule]:
 
 
 def create_schedule(db: Session, data: ScheduleCreate) -> Schedule:
-    from datetime import datetime
 
     schedule = Schedule(
         workflow_id=data.workflow_id,

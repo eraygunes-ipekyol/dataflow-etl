@@ -2,6 +2,8 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import AppShell from '@/components/layout/AppShell'
+import ProtectedRoute from '@/components/auth/ProtectedRoute'
+import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import ConnectionsPage from '@/pages/ConnectionsPage'
 import WorkflowsPage from '@/pages/WorkflowsPage'
@@ -22,8 +24,16 @@ const queryClient = new QueryClient({
 
 const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
     path: '/',
-    element: <AppShell />,
+    element: (
+      <ProtectedRoute>
+        <AppShell />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'connections', element: <ConnectionsPage /> },

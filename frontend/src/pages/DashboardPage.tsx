@@ -4,6 +4,7 @@ import { useConnections } from '@/hooks/useConnections'
 import { useWorkflows } from '@/hooks/useWorkflows'
 import { useExecutions } from '@/hooks/useExecutions'
 import { useSchedules } from '@/hooks/useSchedules'
+import { fmtDateTime } from '@/utils/date'
 
 const STATUS_ICON: Record<string, ReactElement> = {
   success: <CheckCircle2 className="h-4 w-4 text-green-500" />,
@@ -90,7 +91,7 @@ export default function DashboardPage() {
                   <td className="px-4 py-2 text-xs capitalize">{exec.trigger_type}</td>
                   <td className="px-4 py-2 text-xs">{exec.rows_processed.toLocaleString()}</td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
-                    {new Date(exec.created_at).toLocaleString('tr-TR')}
+                    {fmtDateTime(exec.created_at)}
                   </td>
                 </tr>
               ))}

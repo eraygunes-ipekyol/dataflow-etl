@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import uuid
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime
+from app.utils.timezone import now_istanbul
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -281,7 +282,7 @@ def run_workflow(
         execution = db.get(Execution, execution_id)
         if execution:
             execution.status = "running"
-            execution.started_at = datetime.now(timezone.utc)
+            execution.started_at = now_istanbul()
             db.commit()
         else:
             execution_id = None  # fallback: yeni oluştur
@@ -292,7 +293,7 @@ def run_workflow(
             workflow_id=workflow_id,
             status="running",
             trigger_type=trigger_type,
-            started_at=datetime.now(timezone.utc),
+            started_at=now_istanbul(),
         )
         db.add(execution)
         db.commit()
@@ -383,7 +384,7 @@ def run_workflow(
             exec_record.status = "success"
             exec_record.rows_processed = total_rows
             exec_record.rows_failed = total_failed
-            exec_record.finished_at = datetime.now(timezone.utc)
+            exec_record.finished_at = now_istanbul()
             db.commit()
 
         _log(db, execution_id, f"Workflow tamamlandı. {total_rows} satır aktarıldı.")
@@ -395,7 +396,7 @@ def run_workflow(
         if exec_record:
             exec_record.status = "failed"
             exec_record.error_message = str(e)
-            exec_record.finished_at = datetime.now(timezone.utc)
+            exec_record.finished_at = now_istanbul()
             db.commit()
         _log(db, execution_id, f"Hata: {e}", level="error")
         return execution_id
@@ -482,6 +483,6 @@ def cancel_execution(db: Session, execution_id: str) -> bool:
     if not execution or execution.status not in ("pending", "running"):
         return False
     execution.status = "cancelled"
-    execution.finished_at = datetime.now(timezone.utc)
+    execution.finished_at = now_istanbul()
     db.commit()
     return True

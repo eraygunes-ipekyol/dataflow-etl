@@ -28,14 +28,11 @@ import WorkflowCreateDialog from '@/components/workflows/WorkflowCreateDialog'
 import WorkflowImportDialog from '@/components/workflows/WorkflowImportDialog'
 import type { FolderTree as FolderTreeType } from '@/types/folder'
 import type { Workflow } from '@/types/workflow'
+import { fmtDateTime } from '@/utils/date'
 
 /* ─────────────── Yardımcı fonksiyonlar ─────────────── */
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr)
-  return d.toLocaleString('tr-TR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return fmtDateTime(dateStr)
 }
 
 /** Klasör ağacında tüm workflow'ları düzleştir ve breadcrumb yolunu hesapla */

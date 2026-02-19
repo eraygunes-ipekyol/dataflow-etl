@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.utils.timezone import now_istanbul
 
 
 class Execution(Base):
@@ -30,7 +31,7 @@ class Execution(Base):
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=now_istanbul, nullable=False
     )
 
     workflow: Mapped["Workflow"] = relationship("Workflow", back_populates="executions")  # noqa: F821
@@ -53,7 +54,7 @@ class ExecutionLog(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=now_istanbul, nullable=False
     )
 
     execution: Mapped["Execution"] = relationship("Execution", back_populates="logs")

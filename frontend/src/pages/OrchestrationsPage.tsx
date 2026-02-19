@@ -2,8 +2,9 @@ import { useState } from 'react'
 import {
   GitMerge, Plus, Trash2, ToggleLeft, ToggleRight, Play,
   ChevronDown, ChevronUp, Edit2, X, GripVertical,
-  CheckCircle2, XCircle, AlertCircle, Clock,
+  CheckCircle2, XCircle, Clock, History,
 } from 'lucide-react'
+import AuditLogModal from '@/components/ui/AuditLogModal'
 import {
   useOrchestrations,
   useCreateOrchestration,
@@ -411,6 +412,7 @@ interface OrcRowProps {
 
 function OrcRow({ orch, workflows, onEdit }: OrcRowProps) {
   const [expanded, setExpanded] = useState(false)
+  const [showAudit, setShowAudit] = useState(false)
   const del = useDeleteOrchestration()
   const run = useRunOrchestration()
   const toggle = useToggleOrchestration()
@@ -491,6 +493,14 @@ function OrcRow({ orch, workflows, onEdit }: OrcRowProps) {
             >
               {orch.is_active ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
             </button>
+            {/* Geçmiş */}
+            <button
+              onClick={() => setShowAudit(true)}
+              title="Geçmiş"
+              className="rounded p-1.5 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <History className="h-4 w-4" />
+            </button>
             {/* Sil */}
             <button
               onClick={() => {
@@ -549,6 +559,15 @@ function OrcRow({ orch, workflows, onEdit }: OrcRowProps) {
             </div>
           </td>
         </tr>
+      )}
+
+      {/* Audit log modal */}
+      {showAudit && (
+        <AuditLogModal
+          title={orch.name}
+          filter={{ entity_type: 'orchestration', entity_id: orch.id, limit: 50 }}
+          onClose={() => setShowAudit(false)}
+        />
       )}
     </>
   )

@@ -10,8 +10,9 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.database import create_tables
 from app.database import SessionLocal
-from app.routers import connections, data_preview, executions, folders, health, orchestrations, schedules, workflows
+from app.routers import auth, audit_logs, connections, data_preview, executions, folders, health, orchestrations, schedules, workflows
 from app.services import orchestration_service, schedule_service
+from app.services.auth_service import ensure_default_admin
 from app.utils.logger import logger
 
 REQUEST_TIMEOUT_SECONDS = 60  # Herhangi bir istek için maksimum süre
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     orchestration_service.set_scheduler(scheduler, SessionLocal)
     db = SessionLocal()
     try:
+        ensure_default_admin(db)
         schedule_service.load_all_schedules(db)
         orchestration_service.load_all_orchestrations(db)
     finally:
@@ -110,6 +112,8 @@ async def logging_middleware(request: Request, call_next):
 
 
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(audit_logs.router, prefix="/api/v1")
 app.include_router(connections.router, prefix="/api/v1")
 app.include_router(data_preview.router, prefix="/api/v1")
 app.include_router(workflows.router, prefix="/api/v1")

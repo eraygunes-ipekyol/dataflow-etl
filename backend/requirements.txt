@@ -21,6 +21,11 @@ apscheduler==3.10.4
 # Encryption
 cryptography==44.0.0
 
+# Authentication
+passlib[bcrypt]==1.7.4
+PyJWT==2.9.0
+tzdata==2024.1
+
 # File upload
 python-multipart==0.0.20
 

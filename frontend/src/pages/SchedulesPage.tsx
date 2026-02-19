@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Clock, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Clock, History, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useSchedules, useCreateSchedule, useDeleteSchedule, useUpdateSchedule } from '@/hooks/useSchedules'
 import { useWorkflows } from '@/hooks/useWorkflows'
 import { CRON_PRESETS } from '@/types/schedule'
+import AuditLogModal from '@/components/ui/AuditLogModal'
+import { fmtDateTime } from '@/utils/date'
 
 export default function SchedulesPage() {
   const { data: schedules = [] } = useSchedules()
@@ -12,6 +14,7 @@ export default function SchedulesPage() {
   const updateSchedule = useUpdateSchedule()
 
   const [showForm, setShowForm] = useState(false)
+  const [auditTarget, setAuditTarget] = useState<{ id: string; name: string } | null>(null)
   const [form, setForm] = useState({
     workflow_id: '',
     name: '',
@@ -157,9 +160,7 @@ export default function SchedulesPage() {
                     <td className="px-4 py-3 text-muted-foreground">{wf?.name ?? schedule.workflow_id.slice(0, 8)}</td>
                     <td className="px-4 py-3 font-mono text-xs bg-muted/10 rounded">{schedule.cron_expression}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">
-                      {schedule.next_run_at
-                        ? new Date(schedule.next_run_at).toLocaleString('tr-TR')
-                        : '—'}
+                      {fmtDateTime(schedule.next_run_at)}
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -175,12 +176,21 @@ export default function SchedulesPage() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => deleteSchedule.mutate(schedule.id)}
-                        className="rounded p-1 hover:bg-destructive/10 text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setAuditTarget({ id: schedule.id, name: schedule.name })}
+                          title="Geçmiş"
+                          className="rounded p-1 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteSchedule.mutate(schedule.id)}
+                          className="rounded p-1 hover:bg-destructive/10 text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -188,6 +198,15 @@ export default function SchedulesPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Audit log modal */}
+      {auditTarget && (
+        <AuditLogModal
+          title={auditTarget.name}
+          filter={{ entity_type: 'schedule', entity_id: auditTarget.id, limit: 50 }}
+          onClose={() => setAuditTarget(null)}
+        />
       )}
     </div>
   )

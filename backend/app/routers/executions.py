@@ -13,8 +13,9 @@ from app.database import get_db, SessionLocal
 from app.schemas.execution import ExecutionDetail, ExecutionLogResponse, ExecutionResponse
 from app.services import execution_service
 from app.utils.logger import logger
+from app.utils.auth_deps import get_current_user
 
-router = APIRouter(prefix="/executions", tags=["executions"])
+router = APIRouter(prefix="/executions", tags=["executions"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=list[ExecutionResponse])
