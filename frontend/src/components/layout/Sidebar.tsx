@@ -5,6 +5,7 @@ import {
   GitBranch,
   Activity,
   Clock,
+  GitMerge,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/workflows', label: 'Workflowlar', icon: GitBranch },
   { to: '/executions', label: 'Çalıştırmalar', icon: Activity },
   { to: '/schedules', label: 'Zamanlamalar', icon: Clock },
+  { to: '/orchestrations', label: 'Orkestrasyonlar', icon: GitMerge },
   { to: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 

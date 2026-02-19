@@ -49,6 +49,14 @@ class BaseConnector(ABC):
         """Bir chunk yazar, yazılan satır sayısını döner."""
         ...
 
+    def execute_non_query(self, sql: str) -> int:
+        """
+        SELECT dışı (INSERT/UPDATE/DELETE/TRUNCATE/DDL) sorgu çalıştırır.
+        Etkilenen satır sayısını döner (-1 = bilinmiyor).
+        Alt sınıflar override etmeli; varsayılan NotImplementedError fırlatır.
+        """
+        raise NotImplementedError(f"{type(self).__name__} execute_non_query desteklemiyor")
+
     def close(self):
         """Bağlantıyı kapat. Alt sınıflar override edebilir."""
         pass

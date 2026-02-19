@@ -9,8 +9,8 @@ sqlalchemy==2.0.36
 pydantic==2.10.4
 pydantic-settings==2.7.1
 
-# MSSQL
-pyodbc==5.2.0
+# MSSQL (pymssql - pyodbc/ODBC gerektirmez, macOS uyumlu)
+pymssql==2.3.13
 
 # BigQuery
 google-cloud-bigquery==3.27.0

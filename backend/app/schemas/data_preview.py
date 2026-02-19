@@ -1,6 +1,33 @@
+from __future__ import annotations
+
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.connection import ColumnInfo
+
+
+class ColumnTransform(BaseModel):
+    type: str  # rename | cast | default | expression | drop
+    target_name: Optional[str] = None
+    cast_to: Optional[str] = None
+    default_value: Optional[str] = None
+    expression: Optional[str] = None
+
+
+class ColumnMapping(BaseModel):
+    source_column: str
+    target_column: str
+    transforms: Optional[list[ColumnTransform]] = None
+    skip: bool = False
+
+
+class MappingPreviewRequest(BaseModel):
+    connection_id: str
+    schema_name: Optional[str] = None
+    table_name: Optional[str] = None
+    query: Optional[str] = None
+    column_mappings: list[ColumnMapping] = Field(default_factory=list)
+    limit: int = Field(50, ge=1, le=200)
 
 
 class PreviewTableRequest(BaseModel):

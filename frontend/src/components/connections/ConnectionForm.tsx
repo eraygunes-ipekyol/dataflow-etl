@@ -18,9 +18,6 @@ const defaultMssqlConfig: MssqlConfig = {
   database: '',
   username: '',
   password: '',
-  driver: 'ODBC Driver 18 for SQL Server',
-  trust_server_certificate: true,
-  encrypt: false,
 }
 
 const defaultBigQueryConfig: BigQueryConfig = {

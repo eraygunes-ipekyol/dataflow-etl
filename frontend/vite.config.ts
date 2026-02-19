@@ -16,9 +16,11 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      '/ws': {
+      // WebSocket proxy: /ws/api/v1/... → ws://localhost:8000/api/v1/...
+      '/ws/api': {
         target: 'ws://localhost:8000',
         ws: true,
+        rewrite: (path) => path.replace(/^\/ws/, ''),
       },
     },
   },

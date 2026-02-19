@@ -12,9 +12,7 @@ class MssqlConfig(BaseModel):
     database: str = Field(..., description="Veritabanı adı")
     username: str = Field(..., description="Kullanıcı adı")
     password: str = Field(..., description="Şifre")
-    driver: str = Field("ODBC Driver 18 for SQL Server", description="ODBC sürücüsü")
-    trust_server_certificate: bool = Field(True, description="Sunucu sertifikasına güven")
-    encrypt: bool = Field(False, description="Bağlantıyı şifrele")
+    # pymssql kullanıldığı için ODBC driver/encrypt/trust_server_certificate gerekmez
 
 
 class BigQueryConfig(BaseModel):

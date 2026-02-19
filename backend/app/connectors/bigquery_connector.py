@@ -48,12 +48,11 @@ class BigQueryConnector(BaseConnector):
         tables = list(self._client.list_tables(dataset_ref))
         result = []
         for table in tables:
-            full_table = self._client.get_table(table.reference)
             result.append(
                 {
                     "name": table.table_id,
                     "schema_name": schema,
-                    "row_count": full_table.num_rows,
+                    "row_count": None,  # Her tablo için ayrı API çağrısı yapmaktan kaçınmak için None
                 }
             )
         return result
@@ -123,13 +122,104 @@ class BigQueryConnector(BaseConnector):
         if chunk:
             yield chunk
 
+    # ── BQ tip dönüşüm yardımcıları ─────────────────────────────────────
+    @staticmethod
+    def _bq_type_to_python(field_type: str, value: Any) -> Any:
+        """BQ alan tipine göre Python değerini dönüştürür (tip uyumsuzluğunu önler)."""
+        import decimal as _decimal
+        import datetime as _dt
+
+        if value is None:
+            return None
+
+        ft = field_type.upper()
+
+        # Tam sayı tipleri
+        if ft in ("INTEGER", "INT64", "INT", "SMALLINT", "BIGINT", "TINYINT", "BYTEINT"):
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, (_decimal.Decimal, float)):
+                return int(value)
+            try:
+                return int(float(str(value)))
+            except (ValueError, TypeError):
+                return None
+
+        # Ondalık tipleri
+        if ft in ("FLOAT", "FLOAT64"):
+            if isinstance(value, bool):
+                return float(int(value))
+            try:
+                return float(str(value))
+            except (ValueError, TypeError):
+                return None
+
+        # Yüksek hassasiyetli sayı
+        if ft in ("NUMERIC", "BIGNUMERIC", "DECIMAL", "BIGDECIMAL"):
+            if isinstance(value, bool):
+                return float(int(value))
+            try:
+                return float(_decimal.Decimal(str(value)))
+            except Exception:
+                return None
+
+        # Metin
+        if ft in ("STRING", "VARCHAR", "CHAR", "BYTES"):
+            if isinstance(value, (_dt.datetime, _dt.date, _dt.time)):
+                return value.isoformat()
+            return str(value)
+
+        # Boolean
+        if ft == "BOOL" or ft == "BOOLEAN":
+            if isinstance(value, bool):
+                return value
+            return str(value).lower() in ("1", "true", "yes", "t", "on")
+
+        # Tarih
+        if ft == "DATE":
+            if isinstance(value, _dt.datetime):
+                return value.date().isoformat()
+            if isinstance(value, _dt.date):
+                return value.isoformat()
+            # "20231205" gibi integer → "2023-12-05"
+            if isinstance(value, (int, float)):
+                s = str(int(value))
+                if len(s) == 8:
+                    return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
+                return s
+            return str(value)
+
+        # Zaman damgası
+        if ft in ("DATETIME", "TIMESTAMP"):
+            if isinstance(value, (_dt.datetime, _dt.date)):
+                return value.isoformat()
+            return str(value)
+
+        # Bilinmeyen tip — string'e çevir
+        return str(value) if not isinstance(value, (str, int, float, bool, type(None))) else value
+
+    def _apply_bq_schema_types(
+        self, rows: list[dict[str, Any]], bq_table: "bigquery.Table"
+    ) -> list[dict[str, Any]]:
+        """Satırlardaki değerleri BQ tablo şemasına göre Python tipine dönüştürür."""
+        field_map = {f.name: f.field_type for f in bq_table.schema}
+        result = []
+        for row in rows:
+            new_row: dict[str, Any] = {}
+            for key, val in row.items():
+                ft = field_map.get(key)
+                new_row[key] = self._bq_type_to_python(ft, val) if ft else val
+            result.append(new_row)
+        return result
+
     def write_chunk(
-        self, schema: str, table: str, rows: list[dict[str, Any]], mode: str = "append"
+        self, schema: str, table: str, rows: list[dict[str, Any]], mode: str = "append",
+        col_type_map: Any = None, on_error: str = "rollback", batch_size: int = 500,
     ) -> int:
         if not rows:
             return 0
 
-        table_ref = f"{self.project_id}.{schema}.{table}"
+        table_ref_str = f"{self.project_id}.{schema}.{table}"
 
         write_disposition = (
             bigquery.WriteDisposition.WRITE_TRUNCATE
@@ -137,29 +227,45 @@ class BigQueryConnector(BaseConnector):
             else bigquery.WriteDisposition.WRITE_APPEND
         )
 
-        job_config = bigquery.LoadJobConfig(
-            write_disposition=write_disposition,
-            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-            autodetect=True,
-        )
+        # Mevcut BQ tablo şemasını al → Python tiplerini dönüştür
+        try:
+            bq_table = self._client.get_table(table_ref_str)
+            rows = self._apply_bq_schema_types(rows, bq_table)
+            # Mevcut şemayı kullan — tip uyumsuzluğunu engeller
+            job_config = bigquery.LoadJobConfig(
+                write_disposition=write_disposition,
+                source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                schema=bq_table.schema,
+            )
+        except Exception as schema_err:
+            logger.warning(f"BQ tablo şeması alınamadı, autodetect kullanılıyor: {schema_err}")
+            job_config = bigquery.LoadJobConfig(
+                write_disposition=write_disposition,
+                source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                autodetect=True,
+            )
 
-        # NDJSON formatına çevir ve geçici dosyaya yaz
+        # NDJSON formatına çevir
         ndjson_lines = [json.dumps(row, default=str) for row in rows]
         ndjson_content = "\n".join(ndjson_lines)
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=True
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=True) as tmp:
             tmp.write(ndjson_content)
             tmp.flush()
 
             with open(tmp.name, "rb") as f:
-                job = self._client.load_table_from_file(
-                    f, table_ref, job_config=job_config
-                )
+                job = self._client.load_table_from_file(f, table_ref_str, job_config=job_config)
                 job.result()  # Tamamlanmasını bekle
 
         return len(rows)
+
+    def execute_non_query(self, sql: str) -> int:
+        """BigQuery üzerinde DML / DDL sorgusu çalıştırır."""
+        job = self._client.query(sql)
+        job.result()  # Tamamlanmasını bekle
+        # DML için num_dml_affected_rows, DDL için None
+        affected = job.num_dml_affected_rows
+        return affected if affected is not None else -1
 
     def close(self):
         if self._client:

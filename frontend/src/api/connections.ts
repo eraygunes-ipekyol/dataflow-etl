@@ -79,3 +79,12 @@ export async function previewQuery(payload: PreviewQueryRequest): Promise<Previe
   const { data } = await api.post('/preview/query', payload)
   return data
 }
+
+/** SQL sorgusunun kolon listesini çeker (veri satırı döndürmez — mapping için hızlı yükleme) */
+export async function getQueryColumns(
+  connectionId: string,
+  query: string,
+): Promise<ColumnInfo[]> {
+  const { data } = await api.post('/preview/columns', { connection_id: connectionId, query })
+  return data
+}

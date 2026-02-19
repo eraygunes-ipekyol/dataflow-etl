@@ -48,3 +48,28 @@ body {
 .react-flow__node {
   border-radius: var(--radius-lg);
 }
+
+/* Handle hover — bağlantı noktalarını belirginleştir */
+.react-flow__handle {
+  cursor: crosshair !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.react-flow__handle:hover {
+  transform: scale(1.4);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.4);
+}
+
+/* Bağlantı çizgisi rengi */
+.react-flow__connection-path {
+  stroke: #6366f1 !important;
+  stroke-width: 2 !important;
+}
+
+/* Edge hover — silme butonu görünür olsun */
+.react-flow__edge:hover .edge-delete-btn {
+  opacity: 1 !important;
+}
+.react-flow__edge.selected .edge-delete-btn {
+  opacity: 1 !important;
+}

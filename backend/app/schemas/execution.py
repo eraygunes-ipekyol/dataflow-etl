@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel
+
+
+class ExecutionResponse(BaseModel):
+    id: str
+    workflow_id: str
+    workflow_name: Optional[str] = None   # JOIN ile doldurulur
+    status: str
+    trigger_type: str
+    error_message: Optional[str] = None
+    rows_processed: int
+    rows_failed: int
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ExecutionLogResponse(BaseModel):
+    id: int
+    execution_id: str
+    node_id: Optional[str] = None
+    level: str
+    message: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ExecutionDetail(ExecutionResponse):
+    logs: list[ExecutionLogResponse] = []

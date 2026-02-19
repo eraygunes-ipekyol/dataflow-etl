@@ -94,11 +94,11 @@ export function useSchemas(connectionId: string) {
   })
 }
 
-export function useTables(connectionId: string, schema: string) {
+export function useTables(connectionId: string, schema: string, enabled?: boolean) {
   return useQuery({
     queryKey: [...CONNECTIONS_KEY, connectionId, 'tables', schema],
     queryFn: () => getTables(connectionId, schema),
-    enabled: !!connectionId && !!schema,
+    enabled: enabled !== undefined ? enabled : (!!connectionId && !!schema),
   })
 }
 

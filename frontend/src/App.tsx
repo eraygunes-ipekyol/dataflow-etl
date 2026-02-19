@@ -5,7 +5,9 @@ import AppShell from '@/components/layout/AppShell'
 import DashboardPage from '@/pages/DashboardPage'
 import ConnectionsPage from '@/pages/ConnectionsPage'
 import WorkflowsPage from '@/pages/WorkflowsPage'
+import WorkflowEditorPage from '@/pages/WorkflowEditorPage'
 import ExecutionsPage from '@/pages/ExecutionsPage'
+import OrchestrationsPage from '@/pages/OrchestrationsPage'
 import SchedulesPage from '@/pages/SchedulesPage'
 import SettingsPage from '@/pages/SettingsPage'
 
@@ -26,8 +28,10 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'connections', element: <ConnectionsPage /> },
       { path: 'workflows', element: <WorkflowsPage /> },
+      { path: 'workflows/:id', element: <WorkflowEditorPage /> },
       { path: 'executions', element: <ExecutionsPage /> },
       { path: 'schedules', element: <SchedulesPage /> },
+      { path: 'orchestrations', element: <OrchestrationsPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },

@@ -41,7 +41,7 @@ cd backend && pytest                                            # Testleri çal�
 
 ## Temel Kurallar
 
-- macOS ve Windows uyumluluğunu her zaman göz önünde bulundur (dosya yolları, komutlar, bağımlılıklar).
+- Windows uyumluluğunu her zaman göz önünde bulundur (dosya yolları, komutlar, bağımlılıklar).
 - Bellek optimizasyonu kritik: büyük veri setlerini streaming/chunked işle, tamamını belleğe yükleme.
 - Workflow editörü React Flow ile sürükle-bırak mantığında olacak.
 - BigQuery bağlantısı service account (JSON key) ile yapılacak.
@@ -63,3 +63,45 @@ cd backend && pytest                                            # Testleri çal�
 - Workflowlar birbirine bağlanabilir (chaining).
 - Başarılı/başarısız durumlar yönetilebilir (hata akışları).
 - Periyodik zamanlayıcı (cron/scheduler) desteği olmalı.
+
+## Geliştirme Sonrası Zorunlu Kontroller
+
+Her geliştirme adımının ardından aşağıdaki kontrolleri mutlaka yap:
+
+### 1. TypeScript Kontrolü
+```bash
+cd frontend && npx tsc --noEmit
+```
+→ Sıfır hata olmalı.
+
+### 2. Frontend Sunucusu
+```bash
+# Çalışıyor mu kontrol et:
+lsof -ti:5173 && echo "Çalışıyor" || echo "ÇALIŞMIYOR"
+
+# Başlatmak için:
+cd frontend && nohup npm run dev > /tmp/frontend.log 2>&1 &
+sleep 5 && curl -s --max-time 5 http://localhost:5173 | head -3
+```
+→ HTML dönmeli.
+
+### 3. Backend Sunucusu
+```bash
+# Çalışıyor mu kontrol et:
+curl -s --max-time 5 http://localhost:8000/api/v1/health
+
+# Başlatmak için:
+cd backend && source venv/bin/activate
+nohup uvicorn main:app --reload --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+sleep 3 && curl -s --max-time 5 http://localhost:8000/api/v1/health
+```
+→ `{"status":"ok","service":"DataFlow ETL"}` dönmeli.
+
+### 4. Port Temizleme (Gerektiğinde)
+```bash
+lsof -ti:8000 | xargs kill -9 2>/dev/null   # Backend portu temizle
+lsof -ti:5173 | xargs kill -9 2>/dev/null   # Frontend portu temizle
+```
+
+### Kural
+**Her geliştirme oturumu sonunda frontend ve backend'in çalıştığını doğrulamadan kullanıcıya teslim etme.**

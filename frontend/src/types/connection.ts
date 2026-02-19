@@ -6,9 +6,7 @@ export interface MssqlConfig {
   database: string
   username: string
   password: string
-  driver: string
-  trust_server_certificate: boolean
-  encrypt: boolean
+  // pymssql kullandığı için driver/encrypt/trust_server_certificate gerekmez
 }
 
 export interface BigQueryConfig {
