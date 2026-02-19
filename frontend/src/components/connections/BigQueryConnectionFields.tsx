@@ -5,9 +5,10 @@ import type { BigQueryConfig } from '@/types/connection'
 interface Props {
   config: BigQueryConfig
   onChange: (config: BigQueryConfig) => void
+  isEdit?: boolean
 }
 
-export default function BigQueryConnectionFields({ config, onChange }: Props) {
+export default function BigQueryConnectionFields({ config, onChange, isEdit }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const update = (field: keyof BigQueryConfig, value: string) => {
@@ -88,7 +89,11 @@ export default function BigQueryConnectionFields({ config, onChange }: Props) {
           }`}
         >
           <Upload className="h-5 w-5" />
-          {hasCredentials ? 'JSON key yüklendi - Değiştirmek için tıklayın' : 'JSON key dosyası yükleyin'}
+          {hasCredentials
+            ? 'JSON key yüklendi - Değiştirmek için tıklayın'
+            : isEdit
+              ? 'Değiştirmek için JSON key dosyası yükleyin (boş bırakılırsa mevcut key korunur)'
+              : 'JSON key dosyası yükleyin'}
         </button>
       </div>
     </div>

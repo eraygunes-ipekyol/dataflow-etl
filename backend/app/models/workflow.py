@@ -25,6 +25,12 @@ class Workflow(Base):
     )
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Webhook bildirim ayarları
+    notification_webhook_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    notification_on_failure: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    notification_on_success: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=now_istanbul, nullable=False
     )

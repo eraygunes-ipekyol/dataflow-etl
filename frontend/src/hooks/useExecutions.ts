@@ -27,6 +27,14 @@ export function useExecution(id: string) {
   })
 }
 
+export function useExecutionTimeline(id: string | null) {
+  return useQuery({
+    queryKey: ['execution-timeline', id],
+    queryFn: () => executionApi.getTimeline(id!),
+    enabled: !!id,
+  })
+}
+
 export function useRunWorkflow() {
   const queryClient = useQueryClient()
 

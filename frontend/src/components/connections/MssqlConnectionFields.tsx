@@ -3,9 +3,10 @@ import type { MssqlConfig } from '@/types/connection'
 interface Props {
   config: MssqlConfig
   onChange: (config: MssqlConfig) => void
+  isEdit?: boolean
 }
 
-export default function MssqlConnectionFields({ config, onChange }: Props) {
+export default function MssqlConnectionFields({ config, onChange, isEdit }: Props) {
   const update = (field: keyof MssqlConfig, value: string | number) => {
     onChange({ ...config, [field]: value })
   }
@@ -72,7 +73,7 @@ export default function MssqlConnectionFields({ config, onChange }: Props) {
             type="password"
             value={config.password}
             onChange={(e) => update('password', e.target.value)}
-            placeholder="••••••••"
+            placeholder={isEdit ? 'Değiştirmek için yeni şifre girin' : '••••••••'}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>

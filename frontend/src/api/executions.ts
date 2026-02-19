@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Execution, ExecutionDetail, ExecutionLog } from '@/types/execution'
+import type { Execution, ExecutionDetail, ExecutionLog, ExecutionTimeline } from '@/types/execution'
 
 export interface ExecutionListParams {
   workflow_id?: string
@@ -33,5 +33,10 @@ export const executionApi = {
 
   cancel: async (id: string) => {
     await api.post(`/executions/${id}/cancel`)
+  },
+
+  getTimeline: async (id: string) => {
+    const res = await api.get<ExecutionTimeline>(`/executions/${id}/timeline`)
+    return res.data
   },
 }

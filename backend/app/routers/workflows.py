@@ -70,6 +70,9 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
         folder_id=workflow.folder_id,
         version=workflow.version,
         is_active=workflow.is_active,
+        notification_webhook_url=getattr(workflow, "notification_webhook_url", None),
+        notification_on_failure=getattr(workflow, "notification_on_failure", True),
+        notification_on_success=getattr(workflow, "notification_on_success", False),
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
         definition=json.loads(workflow.definition),
@@ -186,6 +189,48 @@ async def import_workflow(
         _get_ip(request),
     )
     return workflow
+
+
+# ─── Webhook test ──────────────────────────────────────────────────────────
+
+@router.post("/{workflow_id}/test-webhook")
+async def test_webhook(workflow_id: str, db: Session = Depends(get_db)):
+    """Workflow'un webhook URL'sine test bildirimi gönderir."""
+    from datetime import datetime, timezone
+    from app.services.notification_service import send_webhook_notification
+    from app.services.execution_service import _build_folder_path
+
+    workflow = await run_in_threadpool(workflow_service.get_workflow, db, workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow bulunamadi")
+
+    webhook_url = getattr(workflow, "notification_webhook_url", None)
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Webhook URL tanimlanmamis")
+
+    # Klasor yolunu bul
+    folder_path = ""
+    if workflow.folder_id:
+        try:
+            folder_path = await run_in_threadpool(_build_folder_path, db, workflow.folder_id)
+        except Exception:
+            folder_path = ""
+
+    payload = {
+        "event": "test",
+        "workflow_id": workflow.id,
+        "workflow_name": workflow.name,
+        "folder_path": folder_path,
+        "message": "Bu bir test mesajidir.",
+        "status": "test",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    success = await send_webhook_notification(webhook_url, payload, max_retries=1)
+    if not success:
+        raise HTTPException(status_code=502, detail="Webhook gonderilemedi - URL'yi kontrol edin")
+
+    return {"status": "ok", "message": f"Test webhook basariyla gonderildi: {webhook_url}"}
 
 
 # ─── Workflow Geçmişi + Restore ───────────────────────────────────────────

@@ -3,6 +3,8 @@ import { X } from 'lucide-react'
 import type {
   ConnectionType,
   ConnectionCreate,
+  ConnectionUpdate,
+  ConnectionDetail,
   ConnectionTestResult,
   MssqlConfig,
   BigQueryConfig,
@@ -10,7 +12,7 @@ import type {
 import MssqlConnectionFields from './MssqlConnectionFields'
 import BigQueryConnectionFields from './BigQueryConnectionFields'
 import ConnectionTestButton from './ConnectionTestButton'
-import { useCreateConnection, useTestConnectionConfig } from '@/hooks/useConnections'
+import { useCreateConnection, useUpdateConnection, useTestConnectionConfig } from '@/hooks/useConnections'
 
 const defaultMssqlConfig: MssqlConfig = {
   host: '',
@@ -28,19 +30,52 @@ const defaultBigQueryConfig: BigQueryConfig = {
 
 interface Props {
   onClose: () => void
+  initialData?: ConnectionDetail
+  connectionId?: string
 }
 
-export default function ConnectionForm({ onClose }: Props) {
-  const [name, setName] = useState('')
-  const [type, setType] = useState<ConnectionType>('mssql')
-  const [mssqlConfig, setMssqlConfig] = useState<MssqlConfig>(defaultMssqlConfig)
-  const [bigqueryConfig, setBigqueryConfig] = useState<BigQueryConfig>(defaultBigQueryConfig)
+export default function ConnectionForm({ onClose, initialData, connectionId }: Props) {
+  const isEdit = !!connectionId
+
+  // Edit modunda config'i başlangıç değeri olarak doldur (şifre/credentials boş bırakılır)
+  const initMssql = (): MssqlConfig => {
+    if (isEdit && initialData?.config) {
+      const c = initialData.config as Record<string, unknown>
+      return {
+        host: (c.host as string) ?? '',
+        port: (c.port as number) ?? 1433,
+        database: (c.database as string) ?? '',
+        username: (c.username as string) ?? '',
+        password: '', // backend maskeliyor, boş bırak
+      }
+    }
+    return defaultMssqlConfig
+  }
+
+  const initBigQuery = (): BigQueryConfig => {
+    if (isEdit && initialData?.config) {
+      const c = initialData.config as Record<string, unknown>
+      return {
+        project_id: (c.project_id as string) ?? '',
+        dataset: (c.dataset as string) ?? '',
+        credentials_json: '', // backend maskeliyor, boş bırak
+      }
+    }
+    return defaultBigQueryConfig
+  }
+
+  const [name, setName] = useState(initialData?.name ?? '')
+  const [type] = useState<ConnectionType>(initialData?.type ?? 'mssql')
+  const [mssqlConfig, setMssqlConfig] = useState<MssqlConfig>(initMssql)
+  const [bigqueryConfig, setBigqueryConfig] = useState<BigQueryConfig>(initBigQuery)
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
 
   const createMutation = useCreateConnection()
+  const updateMutation = useUpdateConnection()
   const testMutation = useTestConnectionConfig()
 
   const currentConfig = type === 'mssql' ? mssqlConfig : bigqueryConfig
+  const isSaving = isEdit ? updateMutation.isPending : createMutation.isPending
 
   const handleTest = () => {
     setTestResult(null)
@@ -52,10 +87,37 @@ export default function ConnectionForm({ onClose }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    createMutation.mutate(
-      { name, type, config: currentConfig } as ConnectionCreate,
-      { onSuccess: () => onClose() },
-    )
+
+    if (isEdit) {
+      // Edit modunda: şifre/credentials boşsa payload'a ekleme (mevcut değeri koru)
+      let config: Record<string, unknown>
+      if (type === 'mssql') {
+        config = {
+          host: mssqlConfig.host,
+          port: mssqlConfig.port,
+          database: mssqlConfig.database,
+          username: mssqlConfig.username,
+        }
+        if (mssqlConfig.password) config.password = mssqlConfig.password
+      } else {
+        config = {
+          project_id: bigqueryConfig.project_id,
+          dataset: bigqueryConfig.dataset,
+        }
+        if (bigqueryConfig.credentials_json) config.credentials_json = bigqueryConfig.credentials_json
+      }
+
+      const payload: ConnectionUpdate = { name, config: config as unknown as MssqlConfig }
+      updateMutation.mutate(
+        { id: connectionId, data: payload },
+        { onSuccess: () => onClose() },
+      )
+    } else {
+      createMutation.mutate(
+        { name, type, config: currentConfig } as ConnectionCreate,
+        { onSuccess: () => onClose() },
+      )
+    }
   }
 
   return (
@@ -63,7 +125,9 @@ export default function ConnectionForm({ onClose }: Props) {
       <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-lg font-semibold">Yeni Bağlantı</h2>
+          <h2 className="text-lg font-semibold">
+            {isEdit ? 'Bağlantıyı Düzenle' : 'Yeni Bağlantı'}
+          </h2>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-accent transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
@@ -94,34 +158,43 @@ export default function ConnectionForm({ onClose }: Props) {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setType('mssql'); setTestResult(null) }}
+                disabled={isEdit}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   type === 'mssql'
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border hover:bg-accent'
-                }`}
+                } ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 MSSQL
               </button>
               <button
                 type="button"
-                onClick={() => { setType('bigquery'); setTestResult(null) }}
+                disabled={isEdit}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   type === 'bigquery'
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border hover:bg-accent'
-                }`}
+                } ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Google BigQuery
               </button>
             </div>
+            {isEdit && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Bağlantı tipi değiştirilemez.
+              </p>
+            )}
           </div>
 
           {/* Tip'e göre config alanları */}
           {type === 'mssql' ? (
-            <MssqlConnectionFields config={mssqlConfig} onChange={setMssqlConfig} />
+            <MssqlConnectionFields
+              config={mssqlConfig}
+              onChange={setMssqlConfig}
+              isEdit={isEdit}
+            />
           ) : (
-            <BigQueryConnectionFields config={bigqueryConfig} onChange={setBigqueryConfig} />
+            <BigQueryConnectionFields config={bigqueryConfig} onChange={setBigqueryConfig} isEdit={isEdit} />
           )}
 
           {/* Test butonu */}
@@ -142,10 +215,10 @@ export default function ConnectionForm({ onClose }: Props) {
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending || !name}
+              disabled={isSaving || !name}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {createMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+              {isSaving ? (isEdit ? 'Güncelleniyor...' : 'Kaydediliyor...') : (isEdit ? 'Güncelle' : 'Kaydet')}
             </button>
           </div>
         </form>

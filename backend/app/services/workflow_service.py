@@ -52,6 +52,12 @@ def update_workflow(db: Session, workflow_id: str, data: WorkflowUpdate) -> Opti
         workflow.version += 1
     if data.is_active is not None:
         workflow.is_active = data.is_active
+    if data.notification_webhook_url is not None:
+        workflow.notification_webhook_url = data.notification_webhook_url if data.notification_webhook_url else None
+    if data.notification_on_failure is not None:
+        workflow.notification_on_failure = data.notification_on_failure
+    if data.notification_on_success is not None:
+        workflow.notification_on_success = data.notification_on_success
 
     db.commit()
     db.refresh(workflow)

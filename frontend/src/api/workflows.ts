@@ -60,6 +60,13 @@ export const workflowApi = {
     URL.revokeObjectURL(url)
   },
 
+  testWebhook: async (id: string) => {
+    const response = await apiClient.post<{ status: string; message: string }>(
+      `/workflows/${id}/test-webhook`
+    )
+    return response.data
+  },
+
   import: async (file: File, folderId?: string) => {
     const formData = new FormData()
     formData.append('file', file)

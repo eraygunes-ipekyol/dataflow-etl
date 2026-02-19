@@ -37,3 +37,21 @@ class ExecutionLogResponse(BaseModel):
 
 class ExecutionDetail(ExecutionResponse):
     logs: list[ExecutionLogResponse] = []
+
+
+class TimelineNodeEntry(BaseModel):
+    node_id: str
+    node_label: str
+    start_time: datetime
+    end_time: datetime
+    duration_seconds: float
+    status: str  # success | failed
+    row_count: int
+
+
+class ExecutionTimeline(BaseModel):
+    execution_id: str
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    total_duration_seconds: float = 0
+    nodes: list[TimelineNodeEntry] = []

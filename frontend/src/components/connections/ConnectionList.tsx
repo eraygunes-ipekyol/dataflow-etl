@@ -1,4 +1,4 @@
-import { Database, History, MoreVertical, Trash2, Plug, PlugZap } from 'lucide-react'
+import { Database, History, MoreVertical, PencilLine, Trash2, Plug, PlugZap } from 'lucide-react'
 import { useState } from 'react'
 import type { Connection } from '@/types/connection'
 import { useDeleteConnection, useTestConnection } from '@/hooks/useConnections'
@@ -8,9 +8,10 @@ import { fmtDate } from '@/utils/date'
 
 interface Props {
   connections: Connection[]
+  onEdit?: (connection: Connection) => void
 }
 
-export default function ConnectionList({ connections }: Props) {
+export default function ConnectionList({ connections, onEdit }: Props) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
   const [auditTarget, setAuditTarget] = useState<{ id: string; name: string } | null>(null)
   const deleteMutation = useDeleteConnection()
@@ -77,6 +78,13 @@ export default function ConnectionList({ connections }: Props) {
                       >
                         <PlugZap className="h-4 w-4" />
                         Bağlantıyı Test Et
+                      </button>
+                      <button
+                        onClick={() => { setMenuOpenId(null); onEdit?.(conn) }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                        Düzenle
                       </button>
                       <button
                         onClick={() => { setMenuOpenId(null); setAuditTarget({ id: conn.id, name: conn.name }) }}

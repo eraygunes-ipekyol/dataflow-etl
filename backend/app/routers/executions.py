@@ -10,7 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.schemas.execution import ExecutionDetail, ExecutionLogResponse, ExecutionResponse
+from app.schemas.execution import ExecutionDetail, ExecutionLogResponse, ExecutionResponse, ExecutionTimeline, TimelineNodeEntry
 from app.services import execution_service
 from app.utils.logger import logger
 from app.utils.auth_deps import get_current_user
@@ -57,6 +57,100 @@ async def cancel_execution(execution_id: str, db: Session = Depends(get_db), _us
     ok = await run_in_threadpool(execution_service.cancel_execution, db, execution_id)
     if not ok:
         raise HTTPException(status_code=400, detail="Execution iptal edilemedi")
+
+
+@router.get("/{execution_id}/timeline", response_model=ExecutionTimeline)
+async def get_execution_timeline(execution_id: str, db: Session = Depends(get_db), _user=Depends(get_current_user)):
+    """Execution'daki her node'un başlangıç/bitiş zamanını ve süresini döner (Gantt grafik için)."""
+    import json
+    import re
+    from app.models.execution import Execution, ExecutionLog
+
+    def _build_timeline():
+        execution = db.get(Execution, execution_id)
+        if not execution:
+            return None
+
+        logs = (
+            db.query(ExecutionLog)
+            .filter(ExecutionLog.execution_id == execution_id, ExecutionLog.node_id.isnot(None))
+            .order_by(ExecutionLog.id)
+            .all()
+        )
+
+        # Workflow definition'dan node label'larını al
+        label_map: dict[str, str] = {}
+        if execution.workflow:
+            try:
+                defn = json.loads(execution.workflow.definition) if isinstance(execution.workflow.definition, str) else execution.workflow.definition
+                for node in defn.get("nodes", []):
+                    nid = node.get("id", "")
+                    label = node.get("data", {}).get("label", nid[:8])
+                    label_map[nid] = label
+            except Exception:
+                pass
+
+        # Node başına log verisini grupla
+        node_data: dict[str, dict] = {}
+        for log in logs:
+            nid = log.node_id
+            if nid not in node_data:
+                node_data[nid] = {
+                    "start_time": log.created_at,
+                    "end_time": log.created_at,
+                    "has_error": False,
+                    "row_count": 0,
+                }
+            nd = node_data[nid]
+            nd["end_time"] = log.created_at
+            if log.level == "error":
+                nd["has_error"] = True
+
+            # Satır sayısını loglardan çek
+            if log.message:
+                m = re.search(r"(\d+)\s+satır\s+yazıldı", log.message)
+                if m:
+                    nd["row_count"] += int(m.group(1))
+                m2 = re.search(r"Chunk\s+\d+:\s+(\d+)\s+satır", log.message)
+                if m2 and not m:
+                    nd["row_count"] += int(m2.group(1))
+                m3 = re.search(r"Etkilenen satır:\s+(\d+)", log.message)
+                if m3:
+                    nd["row_count"] += int(m3.group(1))
+
+        # Timeline node listesini oluştur
+        timeline_nodes = []
+        for nid, nd in node_data.items():
+            duration = (nd["end_time"] - nd["start_time"]).total_seconds()
+            timeline_nodes.append(TimelineNodeEntry(
+                node_id=nid,
+                node_label=label_map.get(nid, nid[:8]),
+                start_time=nd["start_time"],
+                end_time=nd["end_time"],
+                duration_seconds=round(duration, 2),
+                status="failed" if nd["has_error"] else "success",
+                row_count=nd["row_count"],
+            ))
+
+        # Başlangıç zamanına göre sırala
+        timeline_nodes.sort(key=lambda n: n.start_time)
+
+        total_duration = 0.0
+        if execution.started_at and execution.finished_at:
+            total_duration = (execution.finished_at - execution.started_at).total_seconds()
+
+        return ExecutionTimeline(
+            execution_id=execution_id,
+            started_at=execution.started_at,
+            finished_at=execution.finished_at,
+            total_duration_seconds=round(total_duration, 2),
+            nodes=timeline_nodes,
+        )
+
+    result = await run_in_threadpool(_build_timeline)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Execution bulunamadı")
+    return result
 
 
 # ─── Workflow tetikleyici ──────────────────────────────────────────────────

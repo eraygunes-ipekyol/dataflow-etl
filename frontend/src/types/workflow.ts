@@ -108,6 +108,9 @@ export interface Workflow {
   definition: WorkflowDefinition
   version: number
   is_active: boolean
+  notification_webhook_url?: string | null
+  notification_on_failure?: boolean
+  notification_on_success?: boolean
   created_at: string
   updated_at: string
 }
@@ -125,6 +128,9 @@ export interface WorkflowUpdate {
   folder_id?: string
   definition?: WorkflowDefinition
   is_active?: boolean
+  notification_webhook_url?: string | null
+  notification_on_failure?: boolean
+  notification_on_success?: boolean
 }
 
 export interface WorkflowValidationResult {

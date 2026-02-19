@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { X, CheckCircle2, XCircle, Loader2, AlertCircle, Clock } from 'lucide-react'
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { X, CheckCircle2, XCircle, Loader2, AlertCircle, Clock, BarChart3, Terminal } from 'lucide-react'
 import type { ExecutionLog } from '@/types/execution'
 import { useExecution } from '@/hooks/useExecutions'
 import { fmtTime, fmtDuration, fmtDateTime } from '@/utils/date'
+import ExecutionTimeline from './ExecutionTimeline'
 
 interface NodeInfo {
   id: string
@@ -14,6 +16,8 @@ interface Props {
   onClose: () => void
   nodes?: NodeInfo[]
 }
+
+type ViewTab = 'logs' | 'timeline'
 
 // Log terminal her zaman dark arka plana sahip (bg-zinc-950), bu yüzden renkler sabit
 const LEVEL_STYLES: Record<string, string> = {
@@ -33,16 +37,22 @@ const STATUS_ICON = {
 
 export default function ExecutionLogViewer({ executionId, onClose, nodes }: Props) {
   const { data: execution } = useExecution(executionId)
+  const [activeTab, setActiveTab] = useState<ViewTab>('logs')
 
   // node_id → label haritası
-  const nodeLabelMap: Record<string, string> = {}
-  if (nodes) {
-    for (const n of nodes) {
-      nodeLabelMap[n.id] = n.label || n.id.slice(0, 8)
+  const nodeLabelMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (nodes) {
+      for (const n of nodes) {
+        map[n.id] = n.label || n.id.slice(0, 8)
+      }
     }
-  }
+    return map
+  }, [nodes])
+
   const [wsLogs, setWsLogs] = useState<ExecutionLog[]>([])
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [autoScroll, setAutoScroll] = useState(true)
 
   // WebSocket bağlantısı ile canlı log al
   useEffect(() => {
@@ -63,14 +73,33 @@ export default function ExecutionLogViewer({ executionId, onClose, nodes }: Prop
     return () => ws.close()
   }, [executionId])
 
-  // Yeni log gelince aşağı kaydır
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [wsLogs, execution?.logs])
-
   const logs = wsLogs.length > 0 ? wsLogs : (execution?.logs ?? [])
   const status = execution?.status ?? 'pending'
   const duration = fmtDuration(execution?.started_at, execution?.finished_at)
+  const isFinished = status === 'success' || status === 'failed' || status === 'cancelled'
+
+  // Virtual scroll
+  const virtualizer = useVirtualizer({
+    count: logs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 24,
+    overscan: 30,
+  })
+
+  // Auto-scroll: yeni log geldiğinde en alta kay
+  useEffect(() => {
+    if (autoScroll && logs.length > 0 && activeTab === 'logs') {
+      virtualizer.scrollToIndex(logs.length - 1, { align: 'end' })
+    }
+  }, [logs.length, autoScroll, virtualizer, activeTab])
+
+  // Kullanıcı yukarı scroll ederse auto-scroll kapat, alta inince aç
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+    setAutoScroll(atBottom)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4">
@@ -79,13 +108,12 @@ export default function ExecutionLogViewer({ executionId, onClose, nodes }: Prop
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-3 flex-wrap">
             {STATUS_ICON[status as keyof typeof STATUS_ICON]}
-            <span className="font-semibold">Execution Logları</span>
+            <span className="font-semibold">Execution</span>
             {execution && (
               <span className="text-sm text-muted-foreground">
                 — {execution.rows_processed.toLocaleString('tr-TR')} satır
               </span>
             )}
-            {/* Başlangıç / bitiş saati */}
             {execution?.started_at && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground border border-border rounded px-2 py-0.5">
                 <Clock className="h-3 w-3" />
@@ -101,27 +129,107 @@ export default function ExecutionLogViewer({ executionId, onClose, nodes }: Prop
           </button>
         </div>
 
-        {/* Log output */}
-        <div className="h-80 overflow-auto bg-zinc-950 dark:bg-[#0d0d0d] font-mono text-xs p-3 space-y-0.5">
-          {logs.map((log, i) => (
-            <div key={log.id ?? i} className={`flex gap-2 ${LEVEL_STYLES[log.level] || ''}`}>
-              <span className="text-muted-foreground flex-shrink-0">
-                {fmtTime(log.created_at)}
-              </span>
-              {log.node_id && (
-                <span className="text-blue-400 flex-shrink-0">
-                  [{nodeLabelMap[log.node_id] || log.node_id.slice(0, 8)}]
-                </span>
-              )}
-              <span className="uppercase text-xs flex-shrink-0 opacity-60">{log.level}</span>
-              <span className="break-all">{log.message}</span>
-            </div>
-          ))}
-          {logs.length === 0 && (
-            <div className="text-muted-foreground text-center py-8">Log bekleniyor...</div>
-          )}
-          <div ref={bottomRef} />
+        {/* Tab bar */}
+        <div className="flex border-b border-border bg-muted/10">
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'logs'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            Loglar
+            <span className="text-xs text-muted-foreground ml-1">({logs.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('timeline')}
+            disabled={!isFinished}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 disabled:opacity-40 disabled:cursor-not-allowed ${
+              activeTab === 'timeline'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+            Timeline
+            {!isFinished && <span className="text-xs">(tamamlanınca)</span>}
+          </button>
         </div>
+
+        {/* Content */}
+        {activeTab === 'logs' ? (
+          <>
+            {/* Log output — Virtual scroll */}
+            <div
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="h-80 overflow-auto bg-zinc-950 dark:bg-[#0d0d0d] font-mono text-xs p-3"
+            >
+              {logs.length === 0 ? (
+                <div className="text-muted-foreground text-center py-8">Log bekleniyor...</div>
+              ) : (
+                <div
+                  style={{
+                    height: `${virtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const log = logs[virtualRow.index]
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${virtualRow.size}px`,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        className={`flex gap-2 items-start ${LEVEL_STYLES[log.level] || ''}`}
+                      >
+                        <span className="text-muted-foreground flex-shrink-0">
+                          {fmtTime(log.created_at)}
+                        </span>
+                        {log.node_id && (
+                          <span className="text-blue-400 flex-shrink-0">
+                            [{nodeLabelMap[log.node_id] || log.node_id.slice(0, 8)}]
+                          </span>
+                        )}
+                        <span className="uppercase text-xs flex-shrink-0 opacity-60">{log.level}</span>
+                        <span className="break-all truncate">{log.message}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Auto-scroll indicator */}
+            {!autoScroll && logs.length > 0 && (
+              <div className="flex justify-center -mt-8 relative z-10 pointer-events-none">
+                <button
+                  onClick={() => {
+                    setAutoScroll(true)
+                    virtualizer.scrollToIndex(logs.length - 1, { align: 'end' })
+                  }}
+                  className="pointer-events-auto text-xs bg-primary/90 text-primary-foreground px-3 py-1 rounded-full shadow-lg hover:bg-primary transition-colors"
+                >
+                  ↓ En Alta Git
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Timeline tab */
+          <div className="h-80 overflow-auto p-4">
+            <ExecutionTimeline executionId={executionId} />
+          </div>
+        )}
 
         {/* Footer */}
         {execution?.error_message && (

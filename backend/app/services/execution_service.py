@@ -23,6 +23,108 @@ from app.services.mapping_service import apply_column_mappings, apply_filter, ge
 from app.utils.logger import logger
 
 
+# ─── Webhook bildirimi ─────────────────────────────────────────────────────
+
+def _send_notification_if_needed(
+    workflow: Optional[Workflow],
+    execution: Optional[Execution],
+    event: str,
+    db: Optional[Session] = None,
+    failed_node_id: Optional[str] = None,
+    failed_node_label: Optional[str] = None,
+) -> None:
+    """Workflow'un webhook ayarlarına göre bildirim gönderir."""
+    if not workflow or not execution:
+        return
+    if not getattr(workflow, "notification_webhook_url", None):
+        return
+
+    is_failure = event == "execution_failed"
+    is_success = event == "execution_success"
+
+    if is_failure and not getattr(workflow, "notification_on_failure", True):
+        return
+    if is_success and not getattr(workflow, "notification_on_success", False):
+        return
+
+    from app.services.notification_service import fire_webhook_notification
+
+    # Klasor yolunu bul
+    folder_path = ""
+    if db and workflow.folder_id:
+        try:
+            folder_path = _build_folder_path(db, workflow.folder_id)
+        except Exception:
+            folder_path = ""
+
+    # Hata durumunda son hata veren node'u execution loglardan bul
+    error_node_id = failed_node_id
+    error_node_label = failed_node_label
+    if is_failure and db and not error_node_id:
+        try:
+            last_error_log = (
+                db.query(ExecutionLog)
+                .filter(
+                    ExecutionLog.execution_id == execution.id,
+                    ExecutionLog.level == "error",
+                )
+                .order_by(ExecutionLog.created_at.desc())
+                .first()
+            )
+            if last_error_log and last_error_log.node_id:
+                error_node_id = last_error_log.node_id
+                # Node label'ini definition'dan bul
+                try:
+                    defn = json.loads(workflow.definition)
+                    for n in defn.get("nodes", []):
+                        if n.get("id") == error_node_id:
+                            error_node_label = n.get("data", {}).get("label", error_node_id)
+                            break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # Detayli mesaj olustur
+    if is_failure:
+        error_msg = execution.error_message or "Bilinmeyen hata"
+        node_info = f" [{error_node_label or error_node_id}]" if (error_node_label or error_node_id) else ""
+        folder_info = f"{folder_path} > " if folder_path else ""
+        message = (
+            f"HATA: {folder_info}{workflow.name}{node_info} - {error_msg} "
+            f"(Tarih: {execution.finished_at or execution.started_at})"
+        )
+    else:
+        folder_info = f"{folder_path} > " if folder_path else ""
+        message = (
+            f"BASARILI: {folder_info}{workflow.name} - "
+            f"{execution.rows_processed or 0} satir islendi "
+            f"(Tarih: {execution.finished_at or execution.started_at})"
+        )
+
+    payload = {
+        "event": event,
+        "workflow_id": workflow.id,
+        "workflow_name": workflow.name,
+        "folder_path": folder_path,
+        "execution_id": execution.id,
+        "status": execution.status,
+        "message": message,
+        "error_message": execution.error_message,
+        "error_node_id": error_node_id,
+        "error_node_label": error_node_label,
+        "started_at": str(execution.started_at) if execution.started_at else None,
+        "finished_at": str(execution.finished_at) if execution.finished_at else None,
+        "rows_processed": execution.rows_processed,
+        "rows_failed": execution.rows_failed,
+    }
+
+    try:
+        fire_webhook_notification(workflow.notification_webhook_url, payload)
+    except Exception as exc:
+        logger.warning("Webhook gonderilemedi: %s", exc)
+
+
 # ─── Yardımcı: log kaydetme ────────────────────────────────────────────────
 
 def _log(
@@ -388,10 +490,14 @@ def run_workflow(
             db.commit()
 
         _log(db, execution_id, f"Workflow tamamlandı. {total_rows} satır aktarıldı.")
+
+        # Webhook bildirimi — başarı
+        _send_notification_if_needed(workflow, exec_record, "execution_success", db=db)
+
         return execution_id
 
     except Exception as e:
-        logger.exception("Execution hatası: %s", e)
+        logger.exception("Execution hatasi: %s", e)
         exec_record = db.get(Execution, execution_id)
         if exec_record:
             exec_record.status = "failed"
@@ -399,6 +505,10 @@ def run_workflow(
             exec_record.finished_at = now_istanbul()
             db.commit()
         _log(db, execution_id, f"Hata: {e}", level="error")
+
+        # Webhook bildirimi — hata
+        _send_notification_if_needed(workflow, exec_record, "execution_failed", db=db)
+
         return execution_id
 
 

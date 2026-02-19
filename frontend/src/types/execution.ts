@@ -26,3 +26,21 @@ export interface ExecutionLog {
 export interface ExecutionDetail extends Execution {
   logs: ExecutionLog[]
 }
+
+export interface TimelineNodeEntry {
+  node_id: string
+  node_label: string
+  start_time: string
+  end_time: string
+  duration_seconds: number
+  status: 'success' | 'failed'
+  row_count: number
+}
+
+export interface ExecutionTimeline {
+  execution_id: string
+  started_at?: string
+  finished_at?: string
+  total_duration_seconds: number
+  nodes: TimelineNodeEntry[]
+}

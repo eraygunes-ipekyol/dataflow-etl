@@ -1,12 +1,24 @@
 import { useState } from 'react'
 import { Database, Plus, Loader2 } from 'lucide-react'
-import { useConnections } from '@/hooks/useConnections'
+import { useConnections, useConnection } from '@/hooks/useConnections'
+import type { Connection } from '@/types/connection'
 import ConnectionList from '@/components/connections/ConnectionList'
 import ConnectionForm from '@/components/connections/ConnectionForm'
 
 export default function ConnectionsPage() {
   const [showForm, setShowForm] = useState(false)
+  const [editTarget, setEditTarget] = useState<Connection | null>(null)
+
   const { data: connections, isLoading } = useConnections()
+  const { data: editDetail, isLoading: isLoadingDetail } = useConnection(editTarget?.id ?? '')
+
+  const handleEdit = (conn: Connection) => {
+    setEditTarget(conn)
+  }
+
+  const handleCloseEdit = () => {
+    setEditTarget(null)
+  }
 
   return (
     <div className="space-y-6">
@@ -29,7 +41,7 @@ export default function ConnectionsPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : connections && connections.length > 0 ? (
-        <ConnectionList connections={connections} />
+        <ConnectionList connections={connections} onEdit={handleEdit} />
       ) : (
         <div className="rounded-xl border border-border bg-card p-12 text-center">
           <Database className="mx-auto h-12 w-12 text-muted-foreground/50" />
@@ -47,7 +59,23 @@ export default function ConnectionsPage() {
         </div>
       )}
 
+      {/* Yeni bağlantı modalı */}
       {showForm && <ConnectionForm onClose={() => setShowForm(false)} />}
+
+      {/* Düzenleme modalı — detay yüklenene kadar bekle */}
+      {editTarget && (
+        isLoadingDetail ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
+          </div>
+        ) : editDetail ? (
+          <ConnectionForm
+            onClose={handleCloseEdit}
+            initialData={editDetail}
+            connectionId={editTarget.id}
+          />
+        ) : null
+      )}
     </div>
   )
 }

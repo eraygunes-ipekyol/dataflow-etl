@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Activity, CheckCircle2, XCircle, Loader2, AlertCircle,
   Search, Filter, RotateCcw, Eye, ChevronDown, ChevronUp, FolderOpen,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { useExecutions, useCancelExecution } from '@/hooks/useExecutions'
 import { useWorkflows } from '@/hooks/useWorkflows'
@@ -68,6 +69,8 @@ export default function ExecutionsPage() {
 
   const [viewingId,  setViewingId]  = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 20
 
   const [workflowFilter, setWorkflowFilter] = useState('')
   const [folderFilter,   setFolderFilter]   = useState('')
@@ -86,10 +89,30 @@ export default function ExecutionsPage() {
 
   const flatFolders = flattenFolderTree(folderTree)
 
-  const totalRows    = executions.reduce((s, e) => s + e.rows_processed, 0)
-  const successCount = executions.filter((e) => e.status === 'success').length
-  const failedCount  = executions.filter((e) => e.status === 'failed').length
-  const runningCount = executions.filter((e) => e.status === 'running' || e.status === 'pending').length
+  // Workflow ID → Name haritası (O(1) lookup)
+  const workflowMap = useMemo(
+    () => new Map(workflows.map((w) => [w.id, w.name])),
+    [workflows]
+  )
+
+  // İstatistikleri tek geçişte hesapla (useMemo ile optimize)
+  const { totalRows, successCount, failedCount, runningCount } = useMemo(() => {
+    let total = 0, success = 0, failed = 0, running = 0
+    for (const e of executions) {
+      total += e.rows_processed
+      if (e.status === 'success') success++
+      else if (e.status === 'failed') failed++
+      else if (e.status === 'running' || e.status === 'pending') running++
+    }
+    return { totalRows: total, successCount: success, failedCount: failed, runningCount: running }
+  }, [executions])
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(executions.length / PAGE_SIZE))
+  const paginatedExecutions = useMemo(
+    () => executions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [executions, currentPage]
+  )
 
   const hasFilter = !!(workflowFilter || folderFilter || statusFilter)
 
@@ -154,7 +177,7 @@ export default function ExecutionsPage() {
           <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
           <select
             value={folderFilter}
-            onChange={(e) => { setFolderFilter(e.target.value); setWorkflowFilter('') }}
+            onChange={(e) => { setFolderFilter(e.target.value); setWorkflowFilter(''); setCurrentPage(1) }}
             className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
           >
             <option value="">Tüm Klasörler</option>
@@ -169,7 +192,7 @@ export default function ExecutionsPage() {
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <select
             value={workflowFilter}
-            onChange={(e) => { setWorkflowFilter(e.target.value); setFolderFilter('') }}
+            onChange={(e) => { setWorkflowFilter(e.target.value); setFolderFilter(''); setCurrentPage(1) }}
             className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
           >
             <option value="">Tüm Workflow'lar</option>
@@ -193,7 +216,7 @@ export default function ExecutionsPage() {
 
         {hasFilter && (
           <button
-            onClick={() => { setWorkflowFilter(''); setFolderFilter(''); setStatusFilter('') }}
+            onClick={() => { setWorkflowFilter(''); setFolderFilter(''); setStatusFilter(''); setCurrentPage(1) }}
             className="text-xs text-muted-foreground hover:text-foreground underline"
           >
             Filtreleri temizle
@@ -235,7 +258,7 @@ export default function ExecutionsPage() {
               </tr>
             </thead>
             <tbody>
-              {executions.map((exec) => (
+              {paginatedExecutions.map((exec) => (
                 <>
                   <tr
                     key={exec.id}
@@ -255,7 +278,7 @@ export default function ExecutionsPage() {
                     <td className="px-4 py-3">
                       <p className="font-medium text-sm leading-tight">
                         {exec.workflow_name
-                          ?? workflows.find((w) => w.id === exec.workflow_id)?.name
+                          ?? workflowMap.get(exec.workflow_id)
                           ?? exec.workflow_id.slice(0, 8)}
                       </p>
                       {exec.folder_path && (
@@ -343,6 +366,57 @@ export default function ExecutionsPage() {
               ))}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted/10">
+              <span className="text-xs text-muted-foreground">
+                {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, executions.length)} / {executions.length} kayıt
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="rounded p-1.5 hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  // İlk 7 sayfa veya son sayfa civarı göster
+                  let page: number
+                  if (totalPages <= 7) {
+                    page = i + 1
+                  } else if (currentPage <= 4) {
+                    page = i + 1
+                  } else if (currentPage >= totalPages - 3) {
+                    page = totalPages - 6 + i
+                  } else {
+                    page = currentPage - 3 + i
+                  }
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[32px] rounded px-2 py-1 text-xs font-medium transition-colors ${
+                        page === currentPage
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-accent text-muted-foreground'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                })}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="rounded p-1.5 hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

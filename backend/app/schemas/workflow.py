@@ -22,6 +22,9 @@ class WorkflowUpdate(BaseModel):
     folder_id: Optional[str] = None
     definition: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
+    notification_webhook_url: Optional[str] = None
+    notification_on_failure: Optional[bool] = None
+    notification_on_success: Optional[bool] = None
 
 
 class WorkflowResponse(BaseModel):
@@ -31,6 +34,9 @@ class WorkflowResponse(BaseModel):
     folder_id: Optional[str]
     version: int
     is_active: bool
+    notification_webhook_url: Optional[str] = None
+    notification_on_failure: bool = True
+    notification_on_success: bool = False
     created_at: datetime
     updated_at: datetime
 

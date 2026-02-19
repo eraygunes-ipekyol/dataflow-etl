@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -12,7 +12,7 @@ import ReactFlow, {
 } from 'reactflow'
 import type { Node, Edge, Connection, NodeMouseHandler, DefaultEdgeOptions, EdgeTypes } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Save, CheckCircle2, FileJson, Pencil, Check, X, History } from 'lucide-react'
+import { Save, CheckCircle2, FileJson, Pencil, Check, X, History, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useUpdateWorkflow,
@@ -28,6 +28,7 @@ import NodeConfigPanel from '@/components/mapping/NodeConfigPanel'
 import RunButton from '@/components/executions/RunButton'
 import ExecutionLogViewer from '@/components/executions/ExecutionLogViewer'
 import WorkflowHistoryPanel from '@/components/workflows/WorkflowHistoryPanel'
+import NotificationSettings from '@/components/workflows/NotificationSettings'
 
 interface Props {
   workflow: Workflow
@@ -65,6 +66,7 @@ export default function WorkflowEditor({ workflow }: Props) {
   const [titleDraft, setTitleDraft] = useState(workflow.name)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
 
   // Canlı execution durumu: aktif node_id ve node başına satır sayısı
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
@@ -231,35 +233,40 @@ export default function WorkflowEditor({ workflow }: Props) {
     setHoveredEdgeId(null)
   }, [])
 
-  // hoveredEdgeId + aktif node → edge renk & animasyon
-  const edgesWithHover = edges.map((e) => {
-    // Aktif node'a giren veya aktif node'dan çıkan edge'i yeşil yap
-    const isActive = !!activeNodeId && (e.target === activeNodeId || e.source === activeNodeId)
-    return {
-      ...e,
-      animated: true,
-      style: isActive
-        ? { stroke: '#22c55e', strokeWidth: 3 }           // yeşil, kalın
-        : { stroke: '#6366f1', strokeWidth: 2 },           // mor, normal
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 20,
-        height: 20,
-        color: isActive ? '#22c55e' : '#6366f1',
-      },
-      data: { ...(e.data ?? {}), hovered: e.id === hoveredEdgeId },
-    }
-  })
+  // hoveredEdgeId + aktif node → edge renk & animasyon (useMemo ile optimize)
+  const edgesWithHover = useMemo(() =>
+    edges.map((e) => {
+      const isActive = !!activeNodeId && (e.target === activeNodeId || e.source === activeNodeId)
+      return {
+        ...e,
+        animated: true,
+        style: isActive
+          ? { stroke: '#22c55e', strokeWidth: 3 }
+          : { stroke: '#6366f1', strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+          color: isActive ? '#22c55e' : '#6366f1',
+        },
+        data: { ...(e.data ?? {}), hovered: e.id === hoveredEdgeId },
+      }
+    }),
+    [edges, activeNodeId, hoveredEdgeId]
+  )
 
-  // Nodes'a canlı satır sayısı ve aktif flag ekle
-  const nodesWithLive = nodes.map((n) => ({
-    ...n,
-    data: {
-      ...n.data,
-      _liveRows:    nodeRowCounts[n.id] ?? null,
-      _isActive:    n.id === activeNodeId,
-    },
-  }))
+  // Nodes'a canlı satır sayısı ve aktif flag ekle (useMemo ile optimize)
+  const nodesWithLive = useMemo(() =>
+    nodes.map((n) => ({
+      ...n,
+      data: {
+        ...n.data,
+        _liveRows:    nodeRowCounts[n.id] ?? null,
+        _isActive:    n.id === activeNodeId,
+      },
+    })),
+    [nodes, nodeRowCounts, activeNodeId]
+  )
 
   const handleNodeSave = async (updatedNode: WorkflowNode) => {
     // Önce React state'i güncelle
@@ -419,6 +426,19 @@ export default function WorkflowEditor({ workflow }: Props) {
             <History className="h-4 w-4" />
             Geçmiş
           </button>
+          {/* Bildirim ayarları butonu */}
+          <button
+            onClick={() => setShowNotifications(true)}
+            title="Bildirim Ayarları"
+            className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+              workflow.notification_webhook_url
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-500'
+                : 'border-border bg-card hover:bg-accent'
+            }`}
+          >
+            <Bell className="h-4 w-4" />
+            Bildirim
+          </button>
           <button
             onClick={handleValidate}
             disabled={validateWorkflow.isPending}
@@ -510,6 +530,17 @@ export default function WorkflowEditor({ workflow }: Props) {
           executionId={logViewerExecutionId}
           onClose={() => setLogViewerExecutionId(null)}
           nodes={nodes.map((n) => ({ id: n.id, label: (n.data as { label?: string }).label }))}
+        />
+      )}
+
+      {/* Bildirim ayarları modal */}
+      {showNotifications && (
+        <NotificationSettings
+          workflowId={workflow.id}
+          webhookUrl={workflow.notification_webhook_url}
+          onFailure={workflow.notification_on_failure ?? true}
+          onSuccess={workflow.notification_on_success ?? false}
+          onClose={() => setShowNotifications(false)}
         />
       )}
     </div>
