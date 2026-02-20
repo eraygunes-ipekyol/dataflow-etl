@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
 from app.schemas.execution import ExecutionDetail, ExecutionLogResponse, ExecutionResponse, ExecutionTimeline, TimelineNodeEntry
-from app.services import execution_service
+from app.services import auth_service, execution_service
 from app.utils.logger import logger
 from app.utils.auth_deps import get_current_user
 
@@ -213,6 +213,16 @@ async def ws_execution_logs(
     Belirli bir execution için yeni log satırlarını canlı gönderir.
     DB sorguları thread pool'da çalışır — event loop bloke olmaz.
     """
+    # WebSocket kimlik doğrulama — query param ile token kontrolü
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Token gerekli")
+        return
+    payload = auth_service.decode_access_token(token)
+    if not payload:
+        await websocket.close(code=4001, reason="Geçersiz veya süresi dolmuş token")
+        return
+
     await websocket.accept()
     last_log_id = 0
     try:

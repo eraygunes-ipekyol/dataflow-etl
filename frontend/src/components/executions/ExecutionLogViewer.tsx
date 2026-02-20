@@ -59,7 +59,8 @@ export default function ExecutionLogViewer({ executionId, onClose, nodes }: Prop
     if (!executionId || executionId === 'pending') return
 
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const wsUrl = `${wsProto}://${window.location.host}/ws/api/v1/executions/ws/${executionId}/logs`
+    const token = localStorage.getItem('auth_token') || ''
+    const wsUrl = `${wsProto}://${window.location.host}/ws/api/v1/executions/ws/${executionId}/logs?token=${encodeURIComponent(token)}`
     const ws = new WebSocket(wsUrl)
 
     ws.onmessage = (event) => {

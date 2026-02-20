@@ -206,6 +206,7 @@ def get_source_query(node_config: dict) -> Optional[str]:
     schema = node_config.get("schema")
     table = node_config.get("table")
     if table:
-        full_table = f"{schema}.{table}" if schema else table
+        from app.utils.sql_validator import safe_table_reference
+        full_table = safe_table_reference(schema, table)
         return f"SELECT * FROM {full_table}"
     return None

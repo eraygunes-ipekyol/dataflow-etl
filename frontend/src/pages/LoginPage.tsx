@@ -22,7 +22,7 @@ export default function LoginPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mb-4">
             <Database className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">DataFlow ETL</h1>
+          <h1 className="text-2xl font-bold tracking-tight">EROS - ETL</h1>
           <p className="text-sm text-muted-foreground mt-1">Hesabınıza giriş yapın</p>
         </div>
 
@@ -97,7 +97,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          DataFlow ETL v1.0 — Yetkisiz erişim yasaktır
+          EROS - ETL v1.0 — Yetkisiz erişim yasaktır
         </p>
       </div>
     </div>

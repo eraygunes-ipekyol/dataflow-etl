@@ -15,7 +15,8 @@ import {
 } from '@/hooks/useOrchestrations'
 import { useWorkflows } from '@/hooks/useWorkflows'
 import { fmtDateTime } from '@/utils/date'
-import { CRON_PRESETS, type Orchestration, type OrchestrationStepCreate } from '@/types/orchestration'
+import { type Orchestration, type OrchestrationStepCreate } from '@/types/orchestration'
+import CronBuilder from '@/components/shared/CronBuilder'
 
 // ─── Boş adım şablonu ──────────────────────────────────────────────────────
 const emptyStep = (): OrchestrationStepCreate => ({
@@ -61,6 +62,20 @@ interface StepEditorProps {
 }
 
 function StepEditor({ steps, onChange, workflows }: StepEditorProps) {
+  const [expanded, setExpanded] = useState<Set<number>>(() => {
+    // Mevcut adimlar varsa hepsini kapali baslat, yoksa bos set
+    return new Set<number>()
+  })
+
+  const toggleExpand = (index: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
   const update = (index: number, patch: Partial<OrchestrationStepCreate>) => {
     const next = steps.map((s, i) => (i === index ? { ...s, ...patch } : s))
     onChange(next)
@@ -68,10 +83,22 @@ function StepEditor({ steps, onChange, workflows }: StepEditorProps) {
 
   const remove = (index: number) => {
     onChange(steps.filter((_, i) => i !== index).map((s, i) => ({ ...s, order_index: i })))
+    // expanded set'inden kaldir ve index'leri guncelle
+    setExpanded((prev) => {
+      const next = new Set<number>()
+      for (const idx of prev) {
+        if (idx < index) next.add(idx)
+        else if (idx > index) next.add(idx - 1)
+      }
+      return next
+    })
   }
 
   const addStep = () => {
-    onChange([...steps, { ...emptyStep(), order_index: steps.length }])
+    const newIndex = steps.length
+    onChange([...steps, { ...emptyStep(), order_index: newIndex }])
+    // Yeni adimi otomatik ac
+    setExpanded((prev) => new Set(prev).add(newIndex))
   }
 
   const moveUp = (index: number) => {
@@ -79,6 +106,16 @@ function StepEditor({ steps, onChange, workflows }: StepEditorProps) {
     const next = [...steps]
     ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
     onChange(next.map((s, i) => ({ ...s, order_index: i })))
+    // expanded state'i de takas et
+    setExpanded((prev) => {
+      const n = new Set<number>()
+      for (const idx of prev) {
+        if (idx === index) n.add(index - 1)
+        else if (idx === index - 1) n.add(index)
+        else n.add(idx)
+      }
+      return n
+    })
   }
 
   const moveDown = (index: number) => {
@@ -86,124 +123,196 @@ function StepEditor({ steps, onChange, workflows }: StepEditorProps) {
     const next = [...steps]
     ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
     onChange(next.map((s, i) => ({ ...s, order_index: i })))
+    // expanded state'i de takas et
+    setExpanded((prev) => {
+      const n = new Set<number>()
+      for (const idx of prev) {
+        if (idx === index) n.add(index + 1)
+        else if (idx === index + 1) n.add(index)
+        else n.add(idx)
+      }
+      return n
+    })
+  }
+
+  const getWorkflowName = (workflowId: string): string => {
+    if (!workflowId) return 'Workflow sec...'
+    const wf = workflows.find((w) => w.id === workflowId)
+    return wf?.name ?? workflowId.slice(0, 8)
   }
 
   return (
-    <div className="space-y-3">
-      {steps.map((step, i) => (
-        <div key={i} className="rounded-lg border border-border bg-muted/5 p-3">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex flex-col gap-0.5">
-              <button
-                type="button"
-                onClick={() => moveUp(i)}
-                disabled={i === 0}
-                className="text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+    <div className="space-y-2">
+      {steps.map((step, i) => {
+        const isOpen = expanded.has(i)
+        const wfName = getWorkflowName(step.workflow_id)
+
+        return (
+          <div key={i} className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+            {/* Accordion header */}
+            <div
+              className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-muted/10 transition-colors select-none"
+              onClick={() => toggleExpand(i)}
+            >
+              {/* Sira butonlari */}
+              <div
+                className="flex flex-col gap-0.5"
+                onClick={(e) => e.stopPropagation()}
               >
-                <ChevronUp className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => moveDown(i)}
-                disabled={i === steps.length - 1}
-                className="text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
-              >
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => moveUp(i)}
+                  disabled={i === 0}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveDown(i)}
+                  disabled={i === steps.length - 1}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              </div>
+
+              <GripVertical className="h-4 w-4 text-muted-foreground/30 flex-shrink-0" />
+
+              {/* Adim numarasi + workflow adi */}
+              <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded flex-shrink-0">
+                Adim {i + 1}
+              </span>
+              <span className="text-sm font-medium truncate">
+                {wfName}
+              </span>
+
+              {/* Kapali iken ozet bilgiler */}
+              {!isOpen && step.workflow_id && (
+                <div className="flex items-center gap-2 ml-auto mr-2">
+                  {step.retry_count > 0 && (
+                    <span className="text-xs text-amber-400 flex-shrink-0">
+                      {step.retry_count}x
+                    </span>
+                  )}
+                  {step.timeout_seconds > 0 && (
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {step.timeout_seconds}s
+                    </span>
+                  )}
+                  <span
+                    className={`text-xs flex-shrink-0 ${
+                      step.on_failure === 'continue' ? 'text-blue-400' : 'text-red-400'
+                    }`}
+                  >
+                    {step.on_failure === 'continue' ? 'Devam' : 'Dur'}
+                  </span>
+                </div>
+              )}
+
+              <div className={`flex items-center gap-1 ${isOpen || !step.workflow_id ? 'ml-auto' : ''}`}>
+                {/* Expand/collapse toggle */}
+                <div className="rounded p-0.5 text-muted-foreground">
+                  {isOpen
+                    ? <ChevronUp className="h-4 w-4" />
+                    : <ChevronDown className="h-4 w-4" />
+                  }
+                </div>
+                {/* Sil */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); remove(i) }}
+                  className="rounded p-1 hover:bg-destructive/10 text-destructive transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-            <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
-              Adım {i + 1}
-            </span>
-            <div className="ml-auto">
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="rounded p-1 hover:bg-destructive/10 text-destructive transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
+
+            {/* Accordion body */}
+            {isOpen && (
+              <div className="px-3 pb-3 pt-1 border-t border-border/50">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Workflow secimi */}
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Workflow *</label>
+                    <select
+                      value={step.workflow_id}
+                      onChange={(e) => update(i, { workflow_id: e.target.value })}
+                      required
+                      className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
+                    >
+                      <option value="">-- Workflow sec --</option>
+                      {workflows.map((w) => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Retry */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Tekrar Deneme
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={step.retry_count}
+                      onChange={(e) => update(i, { retry_count: parseInt(e.target.value) || 0 })}
+                      className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </div>
+
+                  {/* Retry delay */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Bekleme (sn)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={3600}
+                      value={step.retry_delay_seconds}
+                      onChange={(e) => update(i, { retry_delay_seconds: parseInt(e.target.value) || 0 })}
+                      className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </div>
+
+                  {/* Timeout */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Zaman Asimi (sn, 0=sinirsiz)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={step.timeout_seconds}
+                      onChange={(e) => update(i, { timeout_seconds: parseInt(e.target.value) || 0 })}
+                      className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </div>
+
+                  {/* On failure */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Hata Durumunda
+                    </label>
+                    <select
+                      value={step.on_failure}
+                      onChange={(e) => update(i, { on_failure: e.target.value as 'stop' | 'continue' })}
+                      className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
+                    >
+                      <option value="stop">Durdur</option>
+                      <option value="continue">Devam Et</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {/* Workflow seçimi */}
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Workflow *</label>
-              <select
-                value={step.workflow_id}
-                onChange={(e) => update(i, { workflow_id: e.target.value })}
-                required
-                className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
-              >
-                <option value="">-- Workflow seç --</option>
-                {workflows.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Retry */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Tekrar Deneme
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={10}
-                value={step.retry_count}
-                onChange={(e) => update(i, { retry_count: parseInt(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
-              />
-            </div>
-
-            {/* Retry delay */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Bekleme (sn)
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={3600}
-                value={step.retry_delay_seconds}
-                onChange={(e) => update(i, { retry_delay_seconds: parseInt(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
-              />
-            </div>
-
-            {/* Timeout */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Zaman Aşımı (sn, 0=sınırsız)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={step.timeout_seconds}
-                onChange={(e) => update(i, { timeout_seconds: parseInt(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
-              />
-            </div>
-
-            {/* On failure */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Hata Durumunda
-              </label>
-              <select
-                value={step.on_failure}
-                onChange={(e) => update(i, { on_failure: e.target.value as 'stop' | 'continue' })}
-                className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
-              >
-                <option value="stop">Durdur</option>
-                <option value="continue">Devam Et</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      ))}
+        )
+      })}
 
       <button
         type="button"
@@ -211,7 +320,7 @@ function StepEditor({ steps, onChange, workflows }: StepEditorProps) {
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
       >
         <Plus className="h-4 w-4" />
-        Adım Ekle
+        Adim Ekle
       </button>
     </div>
   )
@@ -310,32 +419,10 @@ function OrcForm({ initial, workflows, onClose }: OrcFormProps) {
 
             {/* Cron */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">Cron Zamanlaması *</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={form.cron_expression}
-                  onChange={(e) => setForm((f) => ({ ...f, cron_expression: e.target.value }))}
-                  required
-                  placeholder="0 8 * * 1-5"
-                  className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono"
-                />
-                <select
-                  onChange={(e) =>
-                    e.target.value && setForm((f) => ({ ...f, cron_expression: e.target.value }))
-                  }
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  defaultValue=""
-                >
-                  <option value="">Şablon</option>
-                  {CRON_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Format: dakika saat gün ay haftanın-günü (İstanbul saatine göre)
-              </p>
+              <CronBuilder
+                value={form.cron_expression}
+                onChange={(cron) => setForm((f) => ({ ...f, cron_expression: cron }))}
+              />
             </div>
 
             {/* On error */}

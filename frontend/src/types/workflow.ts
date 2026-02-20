@@ -125,7 +125,7 @@ export interface WorkflowCreate {
 export interface WorkflowUpdate {
   name?: string
   description?: string
-  folder_id?: string
+  folder_id?: string | null
   definition?: WorkflowDefinition
   is_active?: boolean
   notification_webhook_url?: string | null

@@ -5,11 +5,51 @@ Execution hata/başarı durumlarında dış servislere POST isteği gönderir.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
+import socket
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 
 from app.utils.logger import logger
+
+
+class WebhookSecurityError(Exception):
+    """Güvenli olmayan webhook URL'si tespit edildiğinde fırlatılır."""
+    pass
+
+
+def _validate_webhook_url(url: str) -> None:
+    """
+    Webhook URL'sini SSRF saldırılarına karşı doğrular.
+    - Sadece http/https şemalarına izin verir
+    - Loopback (127.x), link-local, özel ağ adreslerini engeller
+    """
+    parsed = urlparse(url)
+
+    # Şema kontrolü
+    if parsed.scheme not in ("http", "https"):
+        raise WebhookSecurityError(
+            f"Geçersiz webhook URL şeması: {parsed.scheme} (sadece http/https kabul edilir)"
+        )
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise WebhookSecurityError("Webhook URL'sinde geçerli bir hostname bulunamadı")
+
+    # Hostname'i IP'ye çözümle ve kontrol et
+    try:
+        resolved_ips = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in resolved_ips:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                raise WebhookSecurityError(
+                    f"Webhook URL'si yasaklı IP adresine işaret ediyor: {ip} "
+                    f"(loopback/link-local/reserved)"
+                )
+    except socket.gaierror:
+        raise WebhookSecurityError(f"Webhook hostname çözümlenemedi: {hostname}")
 
 
 async def send_webhook_notification(
@@ -22,6 +62,13 @@ async def send_webhook_notification(
     3 deneme, exponential backoff (1s, 2s, 4s).
     Başarılıysa True döner.
     """
+    # SSRF koruması: URL doğrulama
+    try:
+        _validate_webhook_url(webhook_url)
+    except WebhookSecurityError as e:
+        logger.error("Webhook SSRF engellendi: %s", e)
+        return False
+
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=10) as client:

@@ -6,10 +6,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.config import settings
+from app.config import ensure_jwt_secret, settings
 from app.database import create_tables
 from app.database import SessionLocal
-from app.routers import auth, audit_logs, connections, data_preview, executions, folders, health, orchestrations, schedules, workflows
+from app.routers import admin, auth, audit_logs, connections, data_preview, executions, folders, health, orchestrations, schedules, workflows
 from app.services import orchestration_service, schedule_service
 from app.services.auth_service import ensure_default_admin
 from app.utils.logger import logger
@@ -19,8 +19,21 @@ REQUEST_TIMEOUT_SECONDS = 120  # Herhangi bir istek için maksimum süre (long-r
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("DataFlow ETL başlatılıyor...")
+    logger.info("EROS - ETL başlatılıyor...")
+    ensure_jwt_secret()
     create_tables()
+
+    # Mevcut DB'ye must_change_password sütunu eklenmemişse ekle (Alembic yok)
+    from sqlalchemy import inspect as sa_inspect, text
+    from app.database import engine
+    inspector = sa_inspect(engine)
+    existing_cols = [c["name"] for c in inspector.get_columns("users")]
+    if "must_change_password" not in existing_cols:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        logger.info("users tablosuna must_change_password sütunu eklendi.")
+
     logger.info("Veritabanı tabloları hazır.")
     scheduler = schedule_service.init_scheduler(SessionLocal)
     orchestration_service.set_scheduler(scheduler, SessionLocal)
@@ -33,11 +46,11 @@ async def lifespan(app: FastAPI):
         db.close()
     yield
     schedule_service.shutdown_scheduler()
-    logger.info("DataFlow ETL kapatılıyor...")
+    logger.info("EROS - ETL kapatılıyor...")
 
 
 app = FastAPI(
-    title="DataFlow ETL",
+    title="EROS - ETL",
     description="Browser tabanlı ETL aracı - MSSQL ve BigQuery veri aktarımı",
     version="0.1.0",
     lifespan=lifespan,
@@ -47,9 +60,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+# ── Security Headers Middleware ───────────────────────────────────────────────
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Tüm HTTP yanıtlarına güvenlik header'ları ekler."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 # ── Global Exception Handler ──────────────────────────────────────────────────
@@ -60,7 +85,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Yakalanmayan hata [{request.method} {request.url.path}]: {exc}\n{tb}")
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Sunucu hatası: {type(exc).__name__}: {str(exc)}"},
+        content={"detail": "Sunucu hatası oluştu"},
     )
 
 
@@ -90,7 +115,7 @@ async def timeout_middleware(request: Request, call_next):
         logger.error(f"Middleware hatası [{request.method} {request.url.path}]: {exc}\n{tb}")
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Sunucu hatası: {type(exc).__name__}: {str(exc)}"},
+            content={"detail": "Sunucu hatası oluştu"},
         )
 
 
@@ -99,6 +124,7 @@ async def timeout_middleware(request: Request, call_next):
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 app.include_router(audit_logs.router, prefix="/api/v1")
 app.include_router(connections.router, prefix="/api/v1")
 app.include_router(data_preview.router, prefix="/api/v1")

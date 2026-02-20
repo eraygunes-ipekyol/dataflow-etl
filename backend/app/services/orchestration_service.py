@@ -9,6 +9,7 @@ import time
 import uuid
 from datetime import datetime
 from app.utils.timezone import now_istanbul
+from app.utils.cron import cron_dow_to_apscheduler
 from typing import Optional
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -224,7 +225,7 @@ def _register_orchestration_job(orch: Orchestration) -> Optional[datetime]:
         minute, hour, day, month, day_of_week = parts
         trigger = CronTrigger(
             minute=minute, hour=hour, day=day,
-            month=month, day_of_week=day_of_week,
+            month=month, day_of_week=cron_dow_to_apscheduler(day_of_week),
             timezone="Europe/Istanbul",
         )
         job_id = f"orch_{orch.id}"

@@ -21,6 +21,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserInfo
+    must_change_password: bool = False
 
 
 class UserCreate(BaseModel):
@@ -48,6 +49,17 @@ class ChangePasswordRequest(BaseModel):
 
     @model_validator(mode="after")
     def passwords_match(self) -> "ChangePasswordRequest":
+        if self.new_password != self.confirm_password:
+            raise ValueError("Yeni şifreler eşleşmiyor")
+        return self
+
+
+class ForceChangePasswordRequest(BaseModel):
+    new_password: str = Field(..., min_length=6)
+    confirm_password: str
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "ForceChangePasswordRequest":
         if self.new_password != self.confirm_password:
             raise ValueError("Yeni şifreler eşleşmiyor")
         return self

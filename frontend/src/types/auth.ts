@@ -14,6 +14,12 @@ export interface TokenResponse {
   access_token: string
   token_type: string
   user: UserInfo
+  must_change_password?: boolean
+}
+
+export interface ForceChangePasswordRequest {
+  new_password: string
+  confirm_password: string
 }
 
 export interface UserCreate {

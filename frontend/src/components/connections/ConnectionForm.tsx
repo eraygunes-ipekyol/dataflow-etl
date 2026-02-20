@@ -65,7 +65,7 @@ export default function ConnectionForm({ onClose, initialData, connectionId }: P
   }
 
   const [name, setName] = useState(initialData?.name ?? '')
-  const [type] = useState<ConnectionType>(initialData?.type ?? 'mssql')
+  const [type, setType] = useState<ConnectionType>(initialData?.type ?? 'mssql')
   const [mssqlConfig, setMssqlConfig] = useState<MssqlConfig>(initMssql)
   const [bigqueryConfig, setBigqueryConfig] = useState<BigQueryConfig>(initBigQuery)
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
@@ -159,6 +159,7 @@ export default function ConnectionForm({ onClose, initialData, connectionId }: P
               <button
                 type="button"
                 disabled={isEdit}
+                onClick={() => !isEdit && setType('mssql')}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   type === 'mssql'
                     ? 'border-primary bg-primary/10 text-primary'
@@ -170,6 +171,7 @@ export default function ConnectionForm({ onClose, initialData, connectionId }: P
               <button
                 type="button"
                 disabled={isEdit}
+                onClick={() => !isEdit && setType('bigquery')}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   type === 'bigquery'
                     ? 'border-primary bg-primary/10 text-primary'

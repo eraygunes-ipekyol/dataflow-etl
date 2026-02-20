@@ -155,7 +155,7 @@ export default function Header() {
   const btnRef = useRef<HTMLButtonElement>(null)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
 
-  const title = pageTitles[location.pathname] || 'DataFlow ETL'
+  const title = pageTitles[location.pathname] || 'EROS - ETL'
 
   // Dropdown açıldığında butonun konumunu hesapla
   useEffect(() => {

@@ -4,6 +4,7 @@ Authentication servisi.
 """
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
 from app.utils.timezone import now_istanbul
@@ -105,6 +106,7 @@ def change_password(db: Session, user_id: str, new_password: str) -> Optional[Us
     if not user:
         return None
     user.hashed_password = hash_password(new_password)
+    user.must_change_password = False
     user.updated_at = now_istanbul()
     db.commit()
     db.refresh(user)
@@ -136,9 +138,18 @@ def delete_user(db: Session, user_id: str) -> bool:
 def ensure_default_admin(db: Session) -> None:
     """
     Uygulama ilk başladığında users tablosu boşsa
-    varsayılan superadmin oluşturur: admin / admin123
+    rastgele şifreli superadmin oluşturur ve şifreyi konsola yazdırır.
+    İlk girişte şifre değiştirme zorunludur.
     """
     count = db.query(User).count()
     if count == 0:
-        create_user(db, username="admin", password="admin123", role="superadmin")
-        logger.info("Varsayılan superadmin oluşturuldu: admin / admin123")
+        random_password = secrets.token_urlsafe(12)
+        user = create_user(db, username="admin", password=random_password, role="superadmin")
+        user.must_change_password = True
+        db.commit()
+        logger.info("=" * 60)
+        logger.info("VARSAYILAN SUPERADMIN OLUŞTURULDU")
+        logger.info("  Kullanıcı adı : admin")
+        logger.info("  Şifre          : %s", random_password)
+        logger.info("  İlk girişte şifre değiştirmeniz zorunludur!")
+        logger.info("=" * 60)

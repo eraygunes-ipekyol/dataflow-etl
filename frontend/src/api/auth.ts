@@ -1,6 +1,7 @@
 import { api } from './client'
 import type {
   ChangePasswordRequest,
+  ForceChangePasswordRequest,
   LoginRequest,
   SetActiveRequest,
   TokenResponse,
@@ -22,6 +23,10 @@ export const authApi = {
 
   changePassword: async (data: ChangePasswordRequest): Promise<void> => {
     await api.post('/auth/change-password', data)
+  },
+
+  forceChangePassword: async (data: ForceChangePasswordRequest): Promise<void> => {
+    await api.post('/auth/force-change-password', data)
   },
 
   // Superadmin only

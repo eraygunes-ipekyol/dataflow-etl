@@ -70,8 +70,16 @@ def update_connection(db: Session, connection_id: str, data: ConnectionUpdate) -
     if data.is_active is not None:
         connection.is_active = data.is_active
     if data.config is not None:
-        config_json = data.config.model_dump_json()
-        connection.config = encrypt_value(config_json)
+        new_config = data.config.model_dump(exclude_none=True)
+
+        # Sifre/credentials gonderilmediyse mevcut config'ten tamamla
+        existing_config = json.loads(decrypt_value(connection.config))
+        if connection.type == "mssql" and "password" not in new_config:
+            new_config["password"] = existing_config.get("password", "")
+        if connection.type == "bigquery" and "credentials_json" not in new_config:
+            new_config["credentials_json"] = existing_config.get("credentials_json", "")
+
+        connection.config = encrypt_value(json.dumps(new_config))
 
     db.commit()
     db.refresh(connection)

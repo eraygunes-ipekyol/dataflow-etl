@@ -17,6 +17,7 @@ import {
 } from '@/hooks/useAuth'
 import type { UserCreate, UserResponse } from '@/types/auth'
 import { fmtDate } from '@/utils/date'
+import DatabaseManagement from '@/components/admin/DatabaseManagement'
 
 // ─── Kullanıcı Oluştur Modal ─────────────────────────────────────────────────
 interface CreateUserModalProps {
@@ -387,6 +388,13 @@ export default function SettingsPage() {
       {isSuperAdmin && (
         <div className="rounded-xl border border-border bg-card p-6">
           <UserManagement />
+        </div>
+      )}
+
+      {/* Veritabanı Yönetimi (sadece superadmin) */}
+      {isSuperAdmin && (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <DatabaseManagement />
         </div>
       )}
     </div>

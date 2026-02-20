@@ -82,7 +82,8 @@ export default function WorkflowEditor({ workflow }: Props) {
     if (!activeExecutionId) return
 
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const wsUrl = `${wsProto}://${window.location.host}/ws/api/v1/executions/ws/${activeExecutionId}/logs`
+    const token = localStorage.getItem('auth_token') || ''
+    const wsUrl = `${wsProto}://${window.location.host}/ws/api/v1/executions/ws/${activeExecutionId}/logs?token=${encodeURIComponent(token)}`
     const ws = new WebSocket(wsUrl)
 
     ws.onmessage = (event) => {

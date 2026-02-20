@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
+    ForceChangePasswordRequest,
     LoginRequest,
     SetActiveRequest,
     TokenResponse,
@@ -63,6 +64,7 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     return TokenResponse(
         access_token=token,
         user=UserInfo.model_validate(user),
+        must_change_password=user.must_change_password,
     )
 
 
@@ -103,6 +105,36 @@ def change_own_password(
         entity_id=current_user.id,
         entity_name=current_user.username,
         new_value={"info": "Şifre değiştirildi"},
+        ip_address=_get_client_ip(request),
+    )
+    return {"detail": "Şifre başarıyla güncellendi"}
+
+
+@router.post("/force-change-password", status_code=200)
+def force_change_password(
+    data: ForceChangePasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """İlk girişte zorunlu şifre değiştirme. current_password gerekmez."""
+    if not current_user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Şifre değiştirme zorunluluğu bulunmuyor",
+        )
+
+    auth_service.change_password(db, current_user.id, data.new_password)
+
+    audit_service.log_action(
+        db,
+        user_id=current_user.id,
+        username=current_user.username,
+        action="update",
+        entity_type="user",
+        entity_id=current_user.id,
+        entity_name=current_user.username,
+        new_value={"info": "Zorunlu şifre değişikliği tamamlandı"},
         ip_address=_get_client_ip(request),
     )
     return {"detail": "Şifre başarıyla güncellendi"}
