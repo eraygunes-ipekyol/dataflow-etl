@@ -5,8 +5,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
+import json
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
@@ -293,3 +296,90 @@ async def ws_execution_logs(
             await websocket.close()
         except Exception:
             pass
+
+
+# ─── SSE: canlı log akışı (WebSocket alternatifi — IIS ARR uyumlu) ──────
+
+@router.get("/sse/{execution_id}/logs")
+async def sse_execution_logs(
+    execution_id: str,
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """
+    Belirli bir execution için yeni log satırlarını SSE (Server-Sent Events)
+    olarak canlı gönderir. IIS ARR reverse proxy WebSocket desteklemediğinde
+    fallback olarak kullanılır.
+    """
+
+    async def event_generator():
+        last_log_id = 0
+        try:
+            while True:
+                # İstemci bağlantıyı kesti mi?
+                if await request.is_disconnected():
+                    break
+
+                def _fetch_logs(last_id: int):
+                    db = SessionLocal()
+                    try:
+                        execution = execution_service.get_execution(db, execution_id)
+                        if not execution:
+                            return None, None, None, None
+
+                        from app.models.execution import ExecutionLog
+                        new_logs = (
+                            db.query(ExecutionLog)
+                            .filter(
+                                ExecutionLog.execution_id == execution_id,
+                                ExecutionLog.id > last_id,
+                            )
+                            .order_by(ExecutionLog.id)
+                            .all()
+                        )
+                        log_data = [
+                            {
+                                "id": log.id,
+                                "node_id": log.node_id,
+                                "level": log.level,
+                                "message": log.message,
+                                "created_at": log.created_at.isoformat(),
+                            }
+                            for log in new_logs
+                        ]
+                        return log_data, execution.status, execution.rows_processed, execution.rows_failed
+                    finally:
+                        db.close()
+
+                log_data, current_status, rows_processed, rows_failed = await run_in_threadpool(
+                    _fetch_logs, last_log_id
+                )
+
+                if current_status is None:
+                    yield f"data: {json.dumps({'error': 'Execution bulunamadı'})}\n\n"
+                    break
+
+                for log_item in log_data:
+                    yield f"data: {json.dumps(log_item)}\n\n"
+                    last_log_id = log_item["id"]
+
+                if current_status in ("success", "failed", "cancelled"):
+                    yield f"data: {json.dumps({'type': 'done', 'status': current_status, 'rows_processed': rows_processed, 'rows_failed': rows_failed})}\n\n"
+                    break
+
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"SSE hatası [{execution_id}]: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

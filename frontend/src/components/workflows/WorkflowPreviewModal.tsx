@@ -155,7 +155,7 @@ function extractConfigDetails(node: NodeData): Array<{ key: string; value: strin
 }
 
 /** Tek bir node kartı */
-function NodeCard({ node, nodeLabels }: { node: NodeData; nodeLabels: Map<string, string> }) {
+function NodeCard({ node }: { node: NodeData }) {
   const [expanded, setExpanded] = useState(false)
   const style = getNodeStyle(node.type)
   const Icon = style.icon
@@ -197,7 +197,7 @@ function NodeCard({ node, nodeLabels }: { node: NodeData; nodeLabels: Map<string
             <span className="text-[10px] text-muted-foreground uppercase">{connType}</span>
           </div>
         )}
-        {node.data?.disabled && (
+        {!!node.data?.disabled && (
           <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">
             Pasif
           </span>
@@ -330,7 +330,7 @@ export default function WorkflowPreviewModal({ log, onClose }: Props) {
                     </h3>
                     <div className="space-y-2">
                       {groupedNodes[type].map((node) => (
-                        <NodeCard key={node.id} node={node} nodeLabels={nodeLabels} />
+                        <NodeCard key={node.id} node={node} />
                       ))}
                     </div>
                   </div>
@@ -346,7 +346,7 @@ export default function WorkflowPreviewModal({ log, onClose }: Props) {
                     </h3>
                     <div className="space-y-2">
                       {groupedNodes[type].map((node) => (
-                        <NodeCard key={node.id} node={node} nodeLabels={nodeLabels} />
+                        <NodeCard key={node.id} node={node} />
                       ))}
                     </div>
                   </div>

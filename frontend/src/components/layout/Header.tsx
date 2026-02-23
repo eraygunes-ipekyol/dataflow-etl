@@ -188,7 +188,7 @@ export default function Header() {
             </div>
             <span className="font-medium">{user?.username}</span>
             {user?.role === 'superadmin' && (
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" title="Superadmin" />
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" aria-label="Superadmin" />
             )}
             <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
           </button>

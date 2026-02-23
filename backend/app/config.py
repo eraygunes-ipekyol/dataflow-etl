@@ -11,7 +11,7 @@ _DEFAULT_JWT_SECRET = "dataflow-secret-change-me-in-production"
 class Settings(BaseSettings):
     database_url: str = f"sqlite:///{Path(__file__).resolve().parent.parent / 'db' / 'dataflow.db'}"
     encryption_key: str = ""
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8443"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8462", "https://eros.ipekyol.com.tr:8443"]
     default_chunk_size: int = 5000
     preview_row_limit: int = 100
 

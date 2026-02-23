@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from app.config import ensure_jwt_secret, settings
 from app.database import create_tables
 from app.database import SessionLocal
-from app.routers import admin, auth, audit_logs, connections, data_preview, executions, folders, health, orchestrations, schedules, workflows
+from app.routers import admin, ai, auth, audit_logs, connections, data_preview, executions, folders, health, orchestrations, schedules, workflows
 from app.services import orchestration_service, schedule_service
 from app.services.auth_service import ensure_default_admin
 from app.utils.logger import logger
@@ -124,6 +124,7 @@ async def timeout_middleware(request: Request, call_next):
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(audit_logs.router, prefix="/api/v1")
 app.include_router(connections.router, prefix="/api/v1")

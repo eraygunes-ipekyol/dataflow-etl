@@ -708,7 +708,7 @@ export default function DatabaseManagement() {
                       : "Execution'lar"}
                 </span>
                 {t.row_count > 10000 && (
-                  <AlertTriangle className="h-4 w-4 text-amber-400" title="Yüksek kayıt sayısı" />
+                  <AlertTriangle className="h-4 w-4 text-amber-400" aria-label="Yüksek kayıt sayısı" />
                 )}
               </div>
               <p className="text-2xl font-bold tabular-nums">

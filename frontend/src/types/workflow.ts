@@ -35,6 +35,7 @@ export type NodeType =
   | 'filter'
   | 'join'
   | 'workflow_ref'
+  | 'sqlExecute'
 
 // --- Column Mapping & Transform types ---
 

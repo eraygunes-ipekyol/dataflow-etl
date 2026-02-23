@@ -78,4 +78,30 @@ export const workflowApi = {
     })
     return response.data
   },
+
+  // ── Presence (Aktif Kullanıcı Takibi) ──────────────────────────────────
+
+  presenceHeartbeat: async (workflowId: string) => {
+    const response = await apiClient.post<{ active_users: PresenceUser[] }>(
+      `/workflows/${workflowId}/presence/heartbeat`
+    )
+    return response.data
+  },
+
+  presenceLeave: async (workflowId: string) => {
+    await apiClient.delete(`/workflows/${workflowId}/presence`)
+  },
+
+  presenceGet: async (workflowId: string) => {
+    const response = await apiClient.get<{ active_users: PresenceUser[] }>(
+      `/workflows/${workflowId}/presence`
+    )
+    return response.data
+  },
+}
+
+export interface PresenceUser {
+  user_id: string
+  username: string
+  joined_at: number
 }
