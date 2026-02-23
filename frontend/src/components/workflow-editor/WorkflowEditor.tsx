@@ -12,7 +12,7 @@ import ReactFlow, {
 } from 'reactflow'
 import type { Node, Edge, Connection, NodeMouseHandler, DefaultEdgeOptions, EdgeTypes } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Save, CheckCircle2, FileJson, Pencil, Check, X, History, Bell } from 'lucide-react'
+import { Save, CheckCircle2, FileJson, Pencil, Check, X, History, Bell, AlertTriangle, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useUpdateWorkflow,
@@ -29,6 +29,10 @@ import RunButton from '@/components/executions/RunButton'
 import ExecutionLogViewer from '@/components/executions/ExecutionLogViewer'
 import WorkflowHistoryPanel from '@/components/workflows/WorkflowHistoryPanel'
 import NotificationSettings from '@/components/workflows/NotificationSettings'
+import AIAssistantModal from './AIAssistantModal'
+import { useAIStatus } from '@/hooks/useAI'
+import type { WorkflowDefinition } from '@/types/workflow'
+import { useWorkflowPresence } from '@/hooks/useWorkflowPresence'
 
 interface Props {
   workflow: Workflow
@@ -67,6 +71,11 @@ export default function WorkflowEditor({ workflow }: Props) {
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showAI, setShowAI] = useState(false)
+  const { data: aiStatus } = useAIStatus()
+
+  // Aktif kullanıcı presence takibi
+  const { otherUsers } = useWorkflowPresence(workflow.id)
 
   // Canlı execution durumu: aktif node_id ve node başına satır sayısı
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
@@ -77,24 +86,22 @@ export default function WorkflowEditor({ workflow }: Props) {
   const validateWorkflow = useValidateWorkflow()
   const exportWorkflow = useExportWorkflow()
 
-  // ── WebSocket: aktif node & satır sayılarını takip et ───────────────────
+  // ── Canlı execution takibi: WebSocket → SSE fallback ───────────────────
   useEffect(() => {
     if (!activeExecutionId) return
 
-    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const wsUrl = `${wsProto}://${window.location.host}/ws/api/v1/executions/ws/${activeExecutionId}/logs`
-    const ws = new WebSocket(wsUrl)
+    let cancelled = false
 
-    ws.onmessage = (event) => {
+    // Ortak mesaj işleyici
+    const handleMessage = (raw: string) => {
       try {
-        const data = JSON.parse(event.data) as {
+        const data = JSON.parse(raw) as {
           type?: string
           node_id?: string
           message?: string
           level?: string
         }
 
-        // Execution bitti — aktif node + satır sayaçları temizle, WS kapat; log viewer açık kalır
         if (data.type === 'done') {
           setActiveNodeId(null)
           setNodeRowCounts({})
@@ -103,19 +110,13 @@ export default function WorkflowEditor({ workflow }: Props) {
           return
         }
 
-        // Aktif node'u güncelle
         if (data.node_id) {
           setActiveNodeId(data.node_id)
 
-          // Log mesajlarından satır sayısı çek — tüm backend formatlarını yakala
           if (data.message) {
-            // "500 satır yazıldı" veya "500 satır yazıldı (toplam: 1000)"
             const writeMatch = data.message.match(/(\d+)\s+satır\s+yazıldı/)
-            // "Chunk 1: 5000 satır okundu"
             const readMatch  = data.message.match(/Chunk\s+\d+:\s+(\d+)\s+satır\s+okundu/)
-            // "Chunk 1: 5000 satır" (genel chunk log — transform/filter için)
             const chunkMatch = data.message.match(/Chunk\s+\d+:\s+(\d+)\s+satır(?!\s+okundu|\s+yazıldı)/)
-            // "SQL tamamlandı. Etkilenen satır: 42"
             const sqlMatch   = data.message.match(/Etkilenen satır:\s+(\d+)/)
 
             const count = writeMatch?.[1] ?? readMatch?.[1] ?? chunkMatch?.[1] ?? sqlMatch?.[1]
@@ -133,12 +134,46 @@ export default function WorkflowEditor({ workflow }: Props) {
       }
     }
 
-    ws.onclose = () => {
-      setActiveNodeId(null)
-    }
+    // SSE bağlantısı kur (IIS ARR uyumlu — HTTP üzerinden çalışır)
+    // Not: IIS ARR reverse proxy WebSocket frame'lerini iletemiyor,
+    // bu yüzden doğrudan SSE kullanıyoruz.
+    const token = localStorage.getItem('auth_token') || ''
+    const sseUrl = `${window.location.origin}/api/v1/executions/sse/${activeExecutionId}/logs`
+    const controller = new AbortController()
+
+    fetch(sseUrl, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok || !res.body) return
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        const read = (): Promise<void> =>
+          reader.read().then(({ done, value }) => {
+            if (done || cancelled) return
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                handleMessage(line.slice(6))
+              }
+            }
+            return read()
+          })
+
+        read().catch(() => {})
+      })
+      .catch(() => {
+        // Bağlantı hatası — yoksay
+      })
 
     return () => {
-      ws.close()
+      cancelled = true
+      controller.abort()
       setActiveNodeId(null)
     }
   }, [activeExecutionId])
@@ -312,6 +347,39 @@ export default function WorkflowEditor({ workflow }: Props) {
     setNodes((nds) => [...nds, newNode])
   }
 
+  // ── AI Asistan handler'ları ──────────────────────────────────────────────
+  const handleAIReplace = useCallback(
+    (definition: WorkflowDefinition) => {
+      const newNodes = definition.nodes as Node[]
+      const newEdges = normEdges(definition.edges) as Edge[]
+      setNodes(newNodes)
+      setEdges(newEdges)
+      toast.success('AI workflow uygulandı')
+    },
+    [setNodes, setEdges]
+  )
+
+  const handleAIMerge = useCallback(
+    (definition: WorkflowDefinition) => {
+      // Mevcut node'ların en sağ pozisyonunu bul
+      const maxX = nodes.reduce((max, n) => Math.max(max, n.position.x), 0)
+      const offsetX = maxX + 300
+
+      // Yeni node'ların pozisyonlarını kaydır
+      const newNodes = definition.nodes.map((n) => ({
+        ...n,
+        position: { x: n.position.x + offsetX, y: n.position.y },
+      })) as Node[]
+
+      const newEdges = normEdges(definition.edges) as Edge[]
+
+      setNodes((nds) => [...nds, ...newNodes])
+      setEdges((eds) => [...eds, ...newEdges])
+      toast.success('AI workflow mevcut workflow\'a eklendi')
+    },
+    [nodes, setNodes, setEdges]
+  )
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -439,6 +507,17 @@ export default function WorkflowEditor({ workflow }: Props) {
             <Bell className="h-4 w-4" />
             Bildirim
           </button>
+          {/* AI Asistan butonu */}
+          {aiStatus?.is_enabled && (
+            <button
+              onClick={() => setShowAI(true)}
+              title="AI ile Workflow Oluştur"
+              className="flex items-center gap-2 rounded-lg border border-violet-500/50 bg-violet-500/10 px-3 py-1.5 text-sm font-medium text-violet-400 hover:bg-violet-500/20 transition-colors"
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Asistan
+            </button>
+          )}
           <button
             onClick={handleValidate}
             disabled={validateWorkflow.isPending}
@@ -465,6 +544,19 @@ export default function WorkflowEditor({ workflow }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Aktif kullanıcı uyarısı */}
+      {otherUsers.length > 0 && (
+        <div className="flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            <strong>{otherUsers.map((u) => u.username).join(', ')}</strong>
+            {otherUsers.length === 1
+              ? ' bu workflow üzerinde aktif durumda'
+              : ' bu workflow üzerinde aktif durumda'}
+          </span>
+        </div>
+      )}
 
       {/* Editor */}
       <div className="flex-1 flex">
@@ -543,6 +635,23 @@ export default function WorkflowEditor({ workflow }: Props) {
           onClose={() => setShowNotifications(false)}
         />
       )}
+
+      {/* AI Asistan Modal */}
+      <AIAssistantModal
+        isOpen={showAI}
+        onClose={() => setShowAI(false)}
+        currentNodes={nodes as unknown as WorkflowNode[]}
+        currentEdges={edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: (e as any).sourceHandle,
+          targetHandle: (e as any).targetHandle,
+        }))}
+        workflowName={workflow.name}
+        onApplyReplace={handleAIReplace}
+        onApplyMerge={handleAIMerge}
+      />
     </div>
   )
 }

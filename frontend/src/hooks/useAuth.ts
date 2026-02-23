@@ -17,7 +17,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
     onSuccess: (data) => {
-      login(data.access_token, data.user)
+      login(data.access_token, data.user, data.must_change_password)
       navigate('/')
       toast.success(`Hoş geldiniz, ${data.user.username}!`)
     },

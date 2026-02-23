@@ -155,7 +155,7 @@ export default function Header() {
   const btnRef = useRef<HTMLButtonElement>(null)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 })
 
-  const title = pageTitles[location.pathname] || 'DataFlow ETL'
+  const title = pageTitles[location.pathname] || 'EROS - ETL'
 
   // Dropdown açıldığında butonun konumunu hesapla
   useEffect(() => {
@@ -188,7 +188,7 @@ export default function Header() {
             </div>
             <span className="font-medium">{user?.username}</span>
             {user?.role === 'superadmin' && (
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" title="Superadmin" />
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" aria-label="Superadmin" />
             )}
             <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
           </button>

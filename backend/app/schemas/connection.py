@@ -27,9 +27,25 @@ class ConnectionCreate(BaseModel):
     config: Union[MssqlConfig, BigQueryConfig]
 
 
+class MssqlConfigUpdate(BaseModel):
+    """MSSQL config — update icin password opsiyonel."""
+    host: str = Field(..., description="Sunucu adresi")
+    port: int = Field(1433, description="Port numarasi")
+    database: str = Field(..., description="Veritabani adi")
+    username: str = Field(..., description="Kullanici adi")
+    password: Optional[str] = Field(None, description="Sifre (bossa mevcut korunur)")
+
+
+class BigQueryConfigUpdate(BaseModel):
+    """BigQuery config — update icin credentials_json opsiyonel."""
+    project_id: str = Field(..., description="Google Cloud proje ID")
+    dataset: str = Field("", description="Varsayilan dataset")
+    credentials_json: Optional[str] = Field(None, description="Service account JSON key (bossa mevcut korunur)")
+
+
 class ConnectionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    config: Optional[Union[MssqlConfig, BigQueryConfig]] = None
+    config: Optional[Union[MssqlConfigUpdate, BigQueryConfigUpdate]] = None
     is_active: Optional[bool] = None
 
 

@@ -310,7 +310,7 @@ export default function WorkflowsPage() {
   const handleDropToFolder = (workflowId: string, folderId: string | null) => {
     updateWorkflow.mutate({
       id: workflowId,
-      data: { folder_id: folderId ?? undefined },
+      data: { folder_id: folderId },
     })
   }
 
@@ -433,15 +433,10 @@ export default function WorkflowsPage() {
             {!rootDropOver && rootWorkflows.length === 0 && (
               <div className="rounded-lg border border-dashed border-border bg-card/50 p-12 text-center">
                 <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground mb-1">Henüz workflow yok</p>
-                <p className="text-xs text-muted-foreground/60 mb-4">ETL sürecini başlatmak için yeni bir workflow oluşturun</p>
-                <button
-                  onClick={() => setCreateOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  İlk Workflow'u Oluştur
-                </button>
+                <p className="text-sm text-muted-foreground mb-1">Kök dizinde workflow yok</p>
+                <p className="text-xs text-muted-foreground/60">
+                  Sağ üstteki "Yeni Workflow" butonu ile oluşturabilir veya klasörlerden buraya sürükleyebilirsiniz
+                </p>
               </div>
             )}
 

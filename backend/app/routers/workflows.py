@@ -17,6 +17,7 @@ from app.schemas.workflow import (
     WorkflowValidationResult,
 )
 from app.services import audit_service, workflow_service
+from app.services.presence_service import presence_store
 from app.utils.auth_deps import get_current_user
 from app.utils.logger import logger
 
@@ -300,3 +301,36 @@ async def restore_workflow(
 
     logger.info("Workflow restore: %s → log %d by %s", workflow_id, audit_log_id, current_user.username)
     return workflow
+
+
+# ─── Workflow Presence (Aktif Kullanıcı Takibi) ──────────────────────────
+
+@router.post("/{workflow_id}/presence/heartbeat")
+async def presence_heartbeat(
+    workflow_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Kullanıcının bu workflow'da aktif olduğunu bildirir. Her 15 sn'de çağrılmalı."""
+    presence_store.heartbeat(workflow_id, current_user.id, current_user.username)
+    active = presence_store.get_active_users(workflow_id)
+    return {"active_users": active}
+
+
+@router.delete("/{workflow_id}/presence")
+async def presence_leave(
+    workflow_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Kullanıcı workflow editörden ayrıldığında çağrılır."""
+    presence_store.leave(workflow_id, current_user.id)
+    return {"status": "ok"}
+
+
+@router.get("/{workflow_id}/presence")
+async def presence_get(
+    workflow_id: str,
+    _: User = Depends(get_current_user),
+):
+    """Workflow'daki aktif kullanıcıları döner."""
+    active = presence_store.get_active_users(workflow_id)
+    return {"active_users": active}

@@ -28,6 +28,10 @@ backend/.env
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Logs
 *.log
+
+# Deploy scripts (local only)
+deploy/deploy-now.ps1

@@ -37,7 +37,7 @@ export default function Sidebar() {
       <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-4">
         {sidebarOpen && (
           <span className="text-base font-bold tracking-tight">
-            <span className="text-primary">Data</span>Flow
+            <span className="text-primary">EROS</span> - ETL
           </span>
         )}
         <button
@@ -78,7 +78,7 @@ export default function Sidebar() {
       {/* Version */}
       {sidebarOpen && (
         <div className="border-t border-sidebar-border p-4">
-          <p className="text-xs text-muted-foreground">DataFlow ETL v0.1.0</p>
+          <p className="text-xs text-muted-foreground">EROS - ETL v0.1.0</p>
         </div>
       )}
     </aside>

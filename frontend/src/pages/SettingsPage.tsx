@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+  Bot,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Loader2,
   Plus,
+  Save,
   ShieldCheck,
+  Sparkles,
   Trash2,
   User,
   UserCheck,
   UserX,
+  XCircle,
+  Zap,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import {
@@ -15,8 +24,11 @@ import {
   useSetUserActive,
   useDeleteUser,
 } from '@/hooks/useAuth'
+import { useAISettings, useUpdateAISettings, useAIProviders, useAITest } from '@/hooks/useAI'
 import type { UserCreate, UserResponse } from '@/types/auth'
+import type { AISettingsUpdate } from '@/types/ai'
 import { fmtDate } from '@/utils/date'
+import DatabaseManagement from '@/components/admin/DatabaseManagement'
 
 // ─── Kullanıcı Oluştur Modal ─────────────────────────────────────────────────
 interface CreateUserModalProps {
@@ -353,6 +365,249 @@ function UserManagement() {
   )
 }
 
+// ─── AI Yapılandırması (superadmin) ─────────────────────────────────────────
+function AIConfiguration() {
+  const { data: settings, isLoading } = useAISettings()
+  const { data: providers = [] } = useAIProviders()
+  const updateSettings = useUpdateAISettings()
+  const testAI = useAITest()
+
+  const [form, setForm] = useState<AISettingsUpdate>({
+    provider: 'openrouter',
+    model: '',
+    api_key: '',
+    is_enabled: false,
+  })
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  // Mevcut ayarları forma yükle
+  useEffect(() => {
+    if (settings && !initialized) {
+      setForm({
+        provider: settings.provider,
+        model: settings.model,
+        is_enabled: settings.is_enabled,
+      })
+      setInitialized(true)
+    }
+  }, [settings, initialized])
+
+  // Seçili provider bilgisi
+  const selectedProvider = providers.find((p) => p.id === form.provider)
+
+  const handleProviderChange = (provider: string) => {
+    const prov = providers.find((p) => p.id === provider)
+    setForm({
+      ...form,
+      provider,
+      model: prov?.models?.[0] || '',
+    })
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const payload: AISettingsUpdate = {
+      provider: form.provider,
+      model: form.model,
+      is_enabled: form.is_enabled,
+    }
+    // API key sadece girilmişse gönder
+    if (form.api_key && form.api_key.trim()) {
+      payload.api_key = form.api_key.trim()
+    }
+    updateSettings.mutate(payload, {
+      onSuccess: () => {
+        setForm((prev) => ({ ...prev, api_key: '' }))
+        setShowApiKey(false)
+      },
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        Yükleniyor...
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-violet-400" />
+          <div>
+            <h2 className="text-lg font-semibold">AI Yapılandırması</h2>
+            <p className="text-sm text-muted-foreground">
+              Yapay zeka ile workflow oluşturma ayarları
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* AI Aktif/Pasif Toggle */}
+        <div className="flex items-center justify-between rounded-lg border border-border bg-background p-4">
+          <div className="flex items-center gap-3">
+            <Bot className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium">AI Özelliği</p>
+              <p className="text-xs text-muted-foreground">
+                Kullanıcıların AI ile workflow oluşturmasını etkinleştir
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setForm({ ...form, is_enabled: !form.is_enabled })}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              form.is_enabled ? 'bg-emerald-500' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                form.is_enabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* LLM Sağlayıcı */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">LLM Sağlayıcı</label>
+          <select
+            value={form.provider}
+            onChange={(e) => handleProviderChange(e.target.value)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Model Seçimi */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Model</label>
+          {selectedProvider?.custom_model ? (
+            <input
+              type="text"
+              value={form.model}
+              onChange={(e) => setForm({ ...form, model: e.target.value })}
+              placeholder="Model adı girin (ör: anthropic/claude-sonnet-4)"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          ) : (
+            <select
+              value={form.model}
+              onChange={(e) => setForm({ ...form, model: e.target.value })}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              {selectedProvider?.models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* API Key */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">API Key</label>
+          <div className="relative">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              value={form.api_key || ''}
+              onChange={(e) => setForm({ ...form, api_key: e.target.value })}
+              placeholder={settings?.api_key_set ? '••••••••  (mevcut key korunuyor)' : 'API anahtarını girin'}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey(!showApiKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {settings?.api_key_set && (
+            <p className="text-xs text-emerald-400">API key tanımlı. Değiştirmek için yeni key girin.</p>
+          )}
+        </div>
+
+        {/* Test Sonucu */}
+        {testResult && (
+          <div
+            className={`flex items-start gap-2 rounded-lg border p-3 ${
+              testResult.success
+                ? 'border-emerald-500/30 bg-emerald-500/10'
+                : 'border-red-500/30 bg-red-500/10'
+            }`}
+          >
+            {testResult.success ? (
+              <CheckCircle className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+            ) : (
+              <XCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+            )}
+            <p
+              className={`text-sm ${testResult.success ? 'text-emerald-400' : 'text-red-400'}`}
+            >
+              {testResult.message}
+            </p>
+          </div>
+        )}
+
+        {/* Test Et & Kaydet */}
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            disabled={testAI.isPending || (!form.api_key?.trim() && !settings?.api_key_set)}
+            onClick={() => {
+              setTestResult(null)
+              const apiKey = form.api_key?.trim() || ''
+              if (!apiKey && !settings?.api_key_set) return
+              testAI.mutate(
+                { provider: form.provider, model: form.model, api_key: apiKey },
+                {
+                  onSuccess: (data) => setTestResult(data),
+                  onError: () =>
+                    setTestResult({ success: false, message: 'Test isteği gönderilemedi.' }),
+                }
+              )
+            }}
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50 transition-colors"
+          >
+            {testAI.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Zap className="h-4 w-4" />
+            )}
+            {testAI.isPending ? 'Test ediliyor...' : 'Bağlantıyı Test Et'}
+          </button>
+          <button
+            type="submit"
+            disabled={updateSettings.isPending}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {updateSettings.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {updateSettings.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 // ─── Ana Sayfa ───────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user)
@@ -383,10 +638,24 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* AI Yapılandırması (sadece superadmin) */}
+      {isSuperAdmin && (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <AIConfiguration />
+        </div>
+      )}
+
       {/* Kullanıcı Yönetimi (sadece superadmin) */}
       {isSuperAdmin && (
         <div className="rounded-xl border border-border bg-card p-6">
           <UserManagement />
+        </div>
+      )}
+
+      {/* Veritabanı Yönetimi (sadece superadmin) */}
+      {isSuperAdmin && (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <DatabaseManagement />
         </div>
       )}
     </div>

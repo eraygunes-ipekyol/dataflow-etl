@@ -23,6 +23,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=now_istanbul, nullable=False

@@ -45,7 +45,8 @@ def update_workflow(db: Session, workflow_id: str, data: WorkflowUpdate) -> Opti
         workflow.name = data.name
     if data.description is not None:
         workflow.description = data.description
-    if data.folder_id is not None:
+    # folder_id: null gönderilirse klasörden çıkar, gönderilmezse dokunma
+    if "folder_id" in data.model_fields_set:
         workflow.folder_id = data.folder_id
     if data.definition is not None:
         workflow.definition = json.dumps(data.definition)

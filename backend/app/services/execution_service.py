@@ -347,6 +347,13 @@ def _run_sql_execute_node(
     if not sql:
         raise ValueError(f"SQL Execute node {node['id']}: SQL sorgusu boş")
 
+    # Güvenlik: tehlikeli SQL komutlarını engelle
+    from app.utils.sql_validator import validate_sql, DangerousSQLError
+    try:
+        validate_sql(sql)
+    except DangerousSQLError as e:
+        raise ValueError(f"SQL Execute node {node['id']}: {e}") from e
+
     connection = get_connection(db, conn_id)
     if not connection:
         raise ValueError(f"Bağlantı bulunamadı: {conn_id}")

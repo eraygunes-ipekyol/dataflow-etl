@@ -1,10 +1,18 @@
-import { useState } from 'react'
-import { Clock, History, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Clock, Edit2, History, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useSchedules, useCreateSchedule, useDeleteSchedule, useUpdateSchedule } from '@/hooks/useSchedules'
 import { useWorkflows } from '@/hooks/useWorkflows'
-import { CRON_PRESETS } from '@/types/schedule'
+import CronBuilder from '@/components/shared/CronBuilder'
 import AuditLogModal from '@/components/ui/AuditLogModal'
 import { fmtDateTime } from '@/utils/date'
+import type { Schedule } from '@/types/schedule'
+
+const emptyForm = () => ({
+  workflow_id: '',
+  name: '',
+  cron_expression: '0 * * * *',
+  is_active: true,
+})
 
 export default function SchedulesPage() {
   const { data: schedules = [] } = useSchedules()
@@ -14,24 +22,57 @@ export default function SchedulesPage() {
   const updateSchedule = useUpdateSchedule()
 
   const [showForm, setShowForm] = useState(false)
+  const [editTarget, setEditTarget] = useState<Schedule | null>(null)
   const [auditTarget, setAuditTarget] = useState<{ id: string; name: string } | null>(null)
-  const [form, setForm] = useState({
-    workflow_id: '',
-    name: '',
-    cron_expression: '0 * * * *',
-    is_active: true,
-  })
+  const [form, setForm] = useState(emptyForm())
+
+  const isEdit = !!editTarget
+
+  // editTarget degisince formu doldur
+  useEffect(() => {
+    if (editTarget) {
+      setForm({
+        workflow_id: editTarget.workflow_id,
+        name: editTarget.name,
+        cron_expression: editTarget.cron_expression,
+        is_active: editTarget.is_active,
+      })
+    }
+  }, [editTarget])
+
+  const handleEdit = (schedule: Schedule) => {
+    setEditTarget(schedule)
+    setShowForm(true)
+  }
+
+  const handleClose = () => {
+    setShowForm(false)
+    setEditTarget(null)
+    setForm(emptyForm())
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await createSchedule.mutateAsync(form)
-    setShowForm(false)
-    setForm({ workflow_id: '', name: '', cron_expression: '0 * * * *', is_active: true })
+    if (isEdit) {
+      await updateSchedule.mutateAsync({
+        id: editTarget!.id,
+        data: {
+          name: form.name,
+          cron_expression: form.cron_expression,
+          is_active: form.is_active,
+        },
+      })
+    } else {
+      await createSchedule.mutateAsync(form)
+    }
+    handleClose()
   }
 
   const toggleActive = (id: string, current: boolean) => {
     updateSchedule.mutate({ id, data: { is_active: !current } })
   }
+
+  const isPending = createSchedule.isPending || updateSchedule.isPending
 
   return (
     <div className="space-y-6 p-6">
@@ -41,7 +82,7 @@ export default function SchedulesPage() {
           <p className="text-muted-foreground mt-1">Periyodik workflow çalıştırma zamanlamaları</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => { setEditTarget(null); setShowForm(true) }}
           className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -49,10 +90,12 @@ export default function SchedulesPage() {
         </button>
       </div>
 
-      {/* Create form */}
+      {/* Create / Edit form */}
       {showForm && (
         <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="font-semibold mb-4">Yeni Zamanlama</h2>
+          <h2 className="font-semibold mb-4">
+            {isEdit ? 'Zamanlama Düzenle' : 'Yeni Zamanlama'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -61,13 +104,17 @@ export default function SchedulesPage() {
                   value={form.workflow_id}
                   onChange={(e) => setForm((f) => ({ ...f, workflow_id: e.target.value }))}
                   required
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  disabled={isEdit}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="">-- Workflow seç --</option>
                   {workflows.map((w) => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>
+                {isEdit && (
+                  <p className="text-xs text-muted-foreground mt-1">Workflow düzenlemede değiştirilemez</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">İsim *</label>
@@ -82,47 +129,25 @@ export default function SchedulesPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Cron İfadesi *</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={form.cron_expression}
-                  onChange={(e) => setForm((f) => ({ ...f, cron_expression: e.target.value }))}
-                  required
-                  className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono"
-                  placeholder="0 * * * *"
-                />
-                <select
-                  onChange={(e) => e.target.value && setForm((f) => ({ ...f, cron_expression: e.target.value }))}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  defaultValue=""
-                >
-                  <option value="">Şablon seç</option>
-                  {CRON_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Format: dakika saat gün ay haftanın-günü (örn: 0 8 * * 1-5 = Haftaiçi sabah 8)
-              </p>
-            </div>
+            <CronBuilder
+              value={form.cron_expression}
+              onChange={(cron) => setForm((f) => ({ ...f, cron_expression: cron }))}
+            />
 
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={handleClose}
                 className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-accent transition-colors"
               >
                 İptal
               </button>
               <button
                 type="submit"
-                disabled={createSchedule.isPending}
+                disabled={isPending}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                Oluştur
+                {isPending ? 'Kaydediliyor...' : isEdit ? 'Güncelle' : 'Oluştur'}
               </button>
             </div>
           </form>
@@ -177,6 +202,13 @@ export default function SchedulesPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleEdit(schedule)}
+                          title="Düzenle"
+                          className="rounded p-1 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => setAuditTarget({ id: schedule.id, name: schedule.name })}
                           title="Geçmiş"

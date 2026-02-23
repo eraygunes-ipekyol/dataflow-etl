@@ -5,6 +5,7 @@ APScheduler kullanarak cron tabanlı workflow çalıştırma.
 from __future__ import annotations
 
 from app.utils.timezone import now_istanbul
+from app.utils.cron import cron_dow_to_apscheduler
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -85,7 +86,7 @@ def _register_job(schedule: Schedule) -> None:
 
         trigger = CronTrigger(
             minute=minute, hour=hour, day=day,
-            month=month, day_of_week=day_of_week,
+            month=month, day_of_week=cron_dow_to_apscheduler(day_of_week),
             timezone="Europe/Istanbul",
         )
         _scheduler.add_job(

@@ -8,9 +8,11 @@ interface AuthState {
   token: string | null
   user: UserInfo | null
   isAuthenticated: boolean
-  login: (token: string, user: UserInfo) => void
+  mustChangePassword: boolean
+  login: (token: string, user: UserInfo, mustChangePassword?: boolean) => void
   logout: () => void
   updateUser: (user: UserInfo) => void
+  clearMustChangePassword: () => void
 }
 
 function loadToken(): string | null {
@@ -34,21 +36,26 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: loadToken(),
   user: loadUser(),
   isAuthenticated: !!loadToken(),
+  mustChangePassword: false,
 
-  login: (token, user) => {
+  login: (token, user, mustChangePassword = false) => {
     localStorage.setItem(TOKEN_KEY, token)
     localStorage.setItem(USER_KEY, JSON.stringify(user))
-    set({ token, user, isAuthenticated: true })
+    set({ token, user, isAuthenticated: true, mustChangePassword })
   },
 
   logout: () => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
-    set({ token: null, user: null, isAuthenticated: false })
+    set({ token: null, user: null, isAuthenticated: false, mustChangePassword: false })
   },
 
   updateUser: (user) => {
     localStorage.setItem(USER_KEY, JSON.stringify(user))
     set({ user })
+  },
+
+  clearMustChangePassword: () => {
+    set({ mustChangePassword: false })
   },
 }))

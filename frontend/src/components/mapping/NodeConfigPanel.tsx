@@ -912,7 +912,7 @@ export default function NodeConfigPanel({ node, allNodes, edges, onClose, onSave
               <SqlEditor
                 value={(cfg.sql as string) || ''}
                 onChange={(v) => updateConfig({ sql: v })}
-                minHeight={220}
+                minHeight="220px"
               />
             </div>
 

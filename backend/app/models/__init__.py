@@ -1,3 +1,4 @@
+from app.models.ai_settings import AISettings
 from app.models.audit_log import AuditLog
 from app.models.connection import Connection
 from app.models.execution import Execution, ExecutionLog
@@ -8,6 +9,7 @@ from app.models.user import User
 from app.models.workflow import Workflow
 
 __all__ = [
+    "AISettings",
     "AuditLog",
     "Connection",
     "Folder",

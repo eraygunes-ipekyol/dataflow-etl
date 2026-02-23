@@ -61,18 +61,3 @@ export interface OrchestrationRunResult {
   execution_ids: string[]
   status: 'success' | 'partial' | 'failed'
 }
-
-export const CRON_PRESETS = [
-  { label: 'Her dakika', value: '* * * * *' },
-  { label: 'Her 5 dakika', value: '*/5 * * * *' },
-  { label: 'Her 15 dakika', value: '*/15 * * * *' },
-  { label: 'Her 30 dakika', value: '*/30 * * * *' },
-  { label: 'Her saat başı', value: '0 * * * *' },
-  { label: 'Her 6 saatte bir', value: '0 */6 * * *' },
-  { label: 'Her gün sabah 6', value: '0 6 * * *' },
-  { label: 'Her gün öğlen 12', value: '0 12 * * *' },
-  { label: 'Her gün gece yarısı', value: '0 0 * * *' },
-  { label: 'Haftaiçi sabah 8', value: '0 8 * * 1-5' },
-  { label: 'Her Pazartesi', value: '0 9 * * 1' },
-  { label: 'Her Pazar', value: '0 0 * * 0' },
-]
